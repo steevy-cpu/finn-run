@@ -57,7 +57,7 @@ for (let i = 0; i < 90; i++) {
         ctl: !!window.__cvtest?.control?.(),
         status: document.getElementById('cv-status')?.textContent || ''
     })`).then(JSON.parse).catch(() => ({}));
-    if (st.seam && st.ctl && /Calibrate|Re-calibrate/.test(st.status)) { ready = true; break; }
+    if (st.seam && st.ctl && /New Game|Calibrate/.test(st.status)) { ready = true; break; }
     await new Promise(r => setTimeout(r, 1000));
 }
 check("game + CV panel ready", ready);
@@ -69,7 +69,7 @@ const pre = await evalJs(`JSON.stringify((() => {
     ctl.model.getWorldDirection(dir);
     return {
         started: ctl.gameStart,
-        guide: document.body.textContent.includes('Calibrate (right panel)'),
+        guide: document.body.textContent.includes('New Game (right panel)'),
         danceRunning: ctl.allAnimate['dance'].isRunning(),
         forwardZ: dir.z,
         themePaused: window.__cvtest.audio.theme.paused,
@@ -137,11 +137,18 @@ await evalJs(`
     const T = window.__cvtest;
     T.engine.stop();
     let t = 1000;
-    T.interpreter.startCalibration();
+    localStorage.removeItem('cv-leaderboard');
+    // New Game with a nickname: not calibrated yet, so this starts calibration.
+    T.newGame('Tester');
+    window.__nameHidden = document.getElementById('cv-name').hidden;
+    window.__calibratingAfterNewGame = T.interpreter.debug.calibrating;
     for (let i = 0; i < 30; i++) T.inject(body(0.5, 0.6), t += 33);
     window.__t = t;
 })()
 `);
+check("New Game prompt closes on submit", await evalJs(`window.__nameHidden === true`));
+check("New Game starts calibration when uncalibrated", await evalJs(`window.__calibratingAfterNewGame === true`));
+check("nickname remembered", await evalJs(`localStorage.getItem('cv-player') === 'Tester'`));
 await new Promise(r => setTimeout(r, 300));
 check("countdown shows only AFTER calibration completes", await evalJs(`
     window.__cvtest.interpreter.calibrated && !window.__cvtest.interpreter.debug.calibrating
@@ -262,13 +269,17 @@ const restart = await evalJs(`
     out.ended = ctl.gameStatus === 'end';
     out.themePausedOnEnd = T.audio.theme.paused;
     out.crashFired = T.audio.crash.currentTime > 0 || !T.audio.crash.paused;
-    out.restartVisible = document.getElementById('cv-restart').style.display === 'block';
+    out.boardShown = document.getElementById('cv-board').hidden === false;
+    const top = T.board.load();
+    out.recorded = top.length === 1 && top[0].name === 'Tester' && top[0].score > 0;
+    out.boardText = document.getElementById('cv-board-you').textContent;
     // Let the death animation settle so the spine is clearly off bind pose.
     await sleep(1500);
     const spine = () => T.control().model.getObjectByName('mixamorigSpine').quaternion.toArray();
     const diff = (a, b) => Math.max(...a.map((v, i) => Math.abs(v - b[i])));
     out.deadPoseDiffers = diff(spine(), window.__bindSpine) > 0.02;
-    document.getElementById('cv-restart').click();
+    T.newGame('Tester'); // already calibrated → restart → countdown → run
+    out.boardHiddenOnNewGame = document.getElementById('cv-board').hidden === true;
     await sleep(1000);
     out.countdownShown = document.getElementById('cv-countdown').style.display === 'flex';
     // Bug fix: during the countdown the respawned character must NOT still
@@ -292,11 +303,13 @@ const restart = await evalJs(`
 `);
 check("2 mistakes end the run", restart.ended);
 check("theme stops + crash sound on death", restart.themePausedOnEnd && restart.crashFired);
-check("Restart button appears", restart.restartVisible);
+check("leaderboard shown after crash", restart.boardShown);
+check("run recorded under the nickname", restart.recorded && /Tester: .* rank #1/.test(restart.boardText));
 check("death pose moved the spine off bind", restart.deadPoseDiffers);
+check("New Game hides the leaderboard", restart.boardHiddenOnNewGame);
 check("respawn resets skeleton (no dead pose in countdown)", restart.respawnResetPose);
-check("restart shows 3-2-1 countdown", restart.countdownShown);
-check("restart button starts a new run", restart.runningAgain);
+check("New Game after crash shows 3-2-1 countdown", restart.countdownShown);
+check("New Game after crash starts a new run", restart.runningAgain);
 check("mistakes reset after restart", restart.mistakesReset);
 check("theme resumes after restart", restart.themeResumed);
 
@@ -380,8 +393,8 @@ const kb = await evalJs(`
 check("keyboard r+p starts a run", kb.started);
 check("gestures still drive the game after keyboard restart", kb.wayRight === 3 && kb.wayBack === 2);
 
-// 7e. Regression: Re-calibrating AFTER a crash must restart + start the run
-// (it used to complete silently and leave the status stuck at 99%).
+// 7e. Re-calibrating AFTER a crash completes (status not stuck at 99%) but
+// does NOT start a run by itself — New Game does.
 const recal = await evalJs(`
 (async () => {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -391,9 +404,13 @@ const recal = await evalJs(`
     ctl.smallMistake = 2;
     await sleep(300);
     const out = {ended: ctl.gameStatus === 'end'};
-    T.interpreter.startCalibration();
+    document.getElementById('cv-calibrate').click();
     for (let i = 0; i < 30; i++) T.inject(body(0.5, 0.6), window.__t += 33);
     out.calibrated = T.interpreter.calibrated && !T.interpreter.debug.calibrating;
+    out.statusSaysNewGame = /New Game/.test(document.getElementById('cv-status').textContent);
+    await sleep(1500);
+    out.notAutoStarted = T.control().gameStart !== true || T.control().status === 'die';
+    T.newGame('Tester');
     let started = false;
     for (let i = 0; i < 15 && !started; i++) {
         await sleep(400);
@@ -406,8 +423,66 @@ const recal = await evalJs(`
     return out;
 })()
 `);
-check("re-calibration after crash completes", recal.ended && recal.calibrated);
-check("re-calibration after crash restarts + starts the run", recal.started);
+check("re-calibration after crash completes", recal.ended && recal.calibrated && recal.statusSaysNewGame);
+check("re-calibration alone does not start a run", recal.notAutoStarted);
+check("New Game after re-calibration starts the run", recal.started);
+
+// 7f. Stop button: ends the run without a crash, shows the top three.
+const stop = await evalJs(`
+(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const T = window.__cvtest;
+    T.audio.crash.pause(); T.audio.crash.currentTime = 0;
+    const before = T.board.load().length;
+    document.getElementById('cv-stop').click();
+    await sleep(300);
+    const ctl = T.control();
+    const out = {
+        ended: ctl.gameStatus === 'end' && ctl.gameStart === false && ctl.status !== 'die',
+        boardShown: document.getElementById('cv-board').hidden === false,
+        recorded: T.board.load().length === before + 1,
+        noCrashSound: T.audio.crash.currentTime === 0 && T.audio.crash.paused,
+        statusStopped: /stopped/i.test(document.getElementById('cv-status').textContent),
+        topThreeMax: document.querySelectorAll('#cv-board-list li').length <= 3,
+    };
+    // Back into a run for the remaining checks.
+    T.newGame('Tester');
+    let started = false;
+    for (let i = 0; i < 15 && !started; i++) {
+        await sleep(400);
+        started = T.control().gameStart === true;
+    }
+    const c2 = T.control();
+    c2.frontCollideCheckStatus = () => {};
+    c2.checkGameStatus = () => {};
+    out.restarted = started;
+    return out;
+})()
+`);
+check("Stop ends the run without a death", stop.ended && stop.noCrashSound && stop.statusStopped);
+check("Stop shows the top-three leaderboard", stop.boardShown && stop.recorded && stop.topThreeMax);
+check("New Game after Stop runs again", stop.restarted);
+
+// 7g. Framing guidance decisions (pure function on landmarks).
+const guide = await evalJs(`
+(() => {
+    const T = window.__cvtest, body = window.__mkbody;
+    const lm = (hipX, hipY, torso) => body(hipX, hipY, torso);
+    const noShoulders = body(0.5, 0.6); noShoulders[11].visibility = 0;
+    return JSON.stringify({
+        none: T.framingProblem(null)?.[0],
+        ok: T.framingProblem(lm(0.5, 0.6, 0.25)),
+        close: T.framingProblem(lm(0.5, 0.9, 0.6))?.[0],
+        far: T.framingProblem(lm(0.5, 0.6, 0.08))?.[0],
+        left: T.framingProblem(lm(0.05, 0.6, 0.25))?.[0],
+        shoulders: T.framingProblem(noShoulders)?.[0],
+    });
+})()
+`).then(JSON.parse);
+check("guidance: nothing shown when framed well", guide.ok === null);
+check("guidance: out of frame / too close / too far / off-center detected",
+    guide.none === 'Step into frame' && guide.close === 'Too close' && guide.far === 'Come closer'
+    && guide.left === 'Move right ➜' && guide.shoulders === 'Show your shoulders');
 
 // 8. Sensitivity sliders update the interpreter and persist
 const tuning = await evalJs(`

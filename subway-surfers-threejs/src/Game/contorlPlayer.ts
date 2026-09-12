@@ -403,6 +403,21 @@ handleLeftRightMove() {
             }
         }
     }
+    // Voluntary stop (Stop button): end the run without a death animation.
+    endRun() {
+        if (!this.gameStart || this.gameStatus === GAME_STATUS.END) {
+            return;
+        }
+        this.gameStart = false; // freezes movement/collisions (see changeStatus)
+        this.gameStatus = GAME_STATUS.END;
+        this.status = playerStatus.INIT;
+        if (this.allAnimate[this.status]) {
+            this.lastAnimation && this.allAnimate[this.lastAnimation]?.fadeOut(0.2);
+            this.allAnimate[this.status].reset().fadeIn(0.2).play();
+            this.lastAnimation = this.status;
+        }
+        this.game.emit('gameStatus', this.gameStatus);
+    }
     doJump() {
         this.key = 'w';
         this.downCollide = false;

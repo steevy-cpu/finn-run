@@ -62,7 +62,47 @@ style.textContent = `
     border-radius: 10px; background: #7c4dff; color: #fff; cursor: pointer;
 }
 .cv-btn:disabled { background: #333; color: #777; }
-#cv-restart { background: #ff5252; display: none; }
+.cv-btn-secondary { background: #2a2f36; }
+#cv-stop { background: #ff5252; display: none; }
+#cv-guide {
+    position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%);
+    z-index: 6; display: none; padding: 18px 34px; border-radius: 16px;
+    background: rgba(255, 82, 82, 0.92); color: #fff; text-align: center;
+    font-size: 34px; font-weight: 800; line-height: 1.2;
+    box-shadow: 0 10px 40px rgba(0,0,0,.5); pointer-events: none;
+    white-space: nowrap;
+}
+#cv-guide small { display: block; font-size: 17px; font-weight: 500; opacity: .9; margin-top: 4px; }
+.cv-modal {
+    position: fixed; left: 0; top: 0; width: 50vw; height: 100vh; z-index: 1500;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    font-family: system-ui, -apple-system, sans-serif; color: #e8eaed;
+}
+.cv-modal[hidden] { display: none; }
+.cv-card {
+    width: min(420px, 80%); background: #111418; border-radius: 18px;
+    padding: 26px 28px; box-shadow: 0 16px 50px rgba(0,0,0,.6);
+}
+.cv-card h2 { margin: 0 0 6px; font-size: 26px; }
+.cv-card p { margin: 0 0 14px; color: #9aa0a6; font-size: 15px; }
+.cv-card input {
+    width: 100%; box-sizing: border-box; font-size: 22px; padding: 12px 14px;
+    border-radius: 10px; border: 2px solid #3a3f47; background: #1b1f25;
+    color: #fff; outline: none;
+}
+.cv-card input:focus { border-color: #7c4dff; }
+.cv-card-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+#cv-board-list { list-style: none; padding: 0; margin: 6px 0 10px; }
+#cv-board-list li {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    border-radius: 10px; background: #1b1f25; margin-bottom: 8px; font-size: 18px;
+}
+#cv-board-list li .medal { font-size: 24px; width: 32px; text-align: center; }
+#cv-board-list li .name { flex: 1; font-weight: 700; }
+#cv-board-list li .score { font-variant-numeric: tabular-nums; }
+#cv-board-list li.you { outline: 2px solid #7c4dff; }
+#cv-board-you { font-size: 16px; color: #e8eaed; }
 #cv-fullscreen {
     background: #2a2f36; padding: 12px 14px; font-size: 18px; line-height: 1;
 }
@@ -96,9 +136,11 @@ panel.innerHTML = `
         </div>
     </div>
     <div id="cv-stats"></div>
+    <div id="cv-guide"></div>
     <div id="cv-bar">
-        <button id="cv-calibrate" class="cv-btn" disabled>Calibrate</button>
-        <button id="cv-restart" class="cv-btn">Restart</button>
+        <button id="cv-newgame" class="cv-btn" disabled>New Game</button>
+        <button id="cv-stop" class="cv-btn">Stop</button>
+        <button id="cv-calibrate" class="cv-btn cv-btn-secondary" disabled>Calibrate</button>
         <div id="cv-status">Loading…</div>
         <div id="cv-key"></div>
         <button id="cv-fullscreen" class="cv-btn" title="Fullscreen (F)">⛶</button>
@@ -124,6 +166,34 @@ panel.innerHTML = `
     </div>
 `;
 document.body.appendChild(panel);
+
+// Overlays on the GAME pane (left half): nickname prompt + leaderboard.
+const gameOverlays = document.createElement('div');
+gameOverlays.innerHTML = `
+    <div id="cv-name" class="cv-modal" hidden>
+        <div class="cv-card">
+            <h2>New Game</h2>
+            <p>Enter your nickname for the leaderboard</p>
+            <input id="cv-name-input" maxlength="16" placeholder="Nickname" autocomplete="off" spellcheck="false">
+            <div class="cv-card-actions">
+                <button id="cv-name-cancel" class="cv-btn cv-btn-secondary">Cancel</button>
+                <button id="cv-name-start" class="cv-btn">Start</button>
+            </div>
+        </div>
+    </div>
+    <div id="cv-board" class="cv-modal" hidden>
+        <div class="cv-card">
+            <h2 id="cv-board-title">Top 3</h2>
+            <ol id="cv-board-list"></ol>
+            <p id="cv-board-you"></p>
+            <div class="cv-card-actions">
+                <button id="cv-board-close" class="cv-btn cv-btn-secondary">Close</button>
+                <button id="cv-board-newgame" class="cv-btn">New Game</button>
+            </div>
+        </div>
+    </div>
+`;
+document.body.appendChild(gameOverlays);
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -198,6 +268,89 @@ function controlPlayer() {
     return (Player as any).instance?.controlPlayer;
 }
 
+// ---------- New Game / Stop / leaderboard ----------
+const NAME_KEY = 'cv-player';
+const BOARD_KEY = 'cv-leaderboard';
+let pendingGame = false;      // New Game pressed, waiting on calibration/countdown
+let stoppedByUser = false;    // Stop button (no crash sound, no death)
+let lastData = {score: 0, coin: 0};
+let playerName = '';
+try { playerName = localStorage.getItem(NAME_KEY) || ''; } catch {}
+
+type Entry = {name: string; score: number; coins: number; at: number};
+function loadBoard(): Entry[] {
+    try {
+        const v = JSON.parse(localStorage.getItem(BOARD_KEY) || '[]');
+        return Array.isArray(v) ? v : [];
+    } catch { return []; }
+}
+function saveBoard(entries: Entry[]) {
+    try { localStorage.setItem(BOARD_KEY, JSON.stringify(entries)); } catch {}
+}
+// Records a finished run; returns the entry's 1-based rank.
+function recordRun(name: string, score: number, coins: number): number {
+    const entries = loadBoard();
+    const entry: Entry = {name, score, coins, at: Date.now()};
+    entries.push(entry);
+    entries.sort((a, b) => b.score - a.score || b.coins - a.coins);
+    saveBoard(entries.slice(0, 100));
+    return entries.indexOf(entry) + 1;
+}
+function showBoard(you?: {name: string; score: number; rank: number}) {
+    const top = loadBoard().slice(0, 3);
+    const medals = ['🥇', '🥈', '🥉'];
+    $('cv-board-list').innerHTML = top.length
+        ? top.map((e, i) => `<li${you && e.name === you.name && e.score === you.score ? ' class="you"' : ''}>
+            <span class="medal">${medals[i]}</span>
+            <span class="name">${escapeHtml(e.name)}</span>
+            <span class="score">${e.score.toLocaleString()} · ${e.coins} 🪙</span></li>`).join('')
+        : '<li><span class="name">No runs yet — be the first!</span></li>';
+    $('cv-board-you').textContent = you
+        ? `${you.name}: ${you.score.toLocaleString()} points — rank #${you.rank}`
+        : '';
+    ($('cv-board') as HTMLElement).hidden = false;
+}
+function hideBoard() { ($('cv-board') as HTMLElement).hidden = true; }
+function escapeHtml(s: string) {
+    return s.replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c] as string));
+}
+
+// Nickname prompt → then calibrate (if needed) → countdown → run.
+function openNamePrompt() {
+    hideBoard();
+    const input = $('cv-name-input') as HTMLInputElement;
+    input.value = playerName;
+    ($('cv-name') as HTMLElement).hidden = false;
+    setTimeout(() => { input.focus(); input.select(); }, 0);
+}
+function closeNamePrompt() { ($('cv-name') as HTMLElement).hidden = true; }
+function submitName() {
+    const input = $('cv-name-input') as HTMLInputElement;
+    playerName = input.value.trim().slice(0, 16) || 'Player';
+    try { localStorage.setItem(NAME_KEY, playerName); } catch {}
+    closeNamePrompt();
+    pendingGame = true;
+    if (interpreter.calibrated) {
+        beginGame();
+    } else {
+        cancelCountdown();
+        lastCalibPct = -1;
+        interpreter.startCalibration();
+        setStatus(`Hi ${playerName}! Hold still — calibrating…`);
+    }
+}
+// Start the run for the pending New Game: a dead run needs an 'r' first
+// (its 'ready' event runs the countdown); otherwise count down directly.
+function beginGame() {
+    pendingGame = false;
+    hideBoard();
+    if (gameEnded) {
+        pressKey('r');
+    } else if (!gameStarted) {
+        restartCountdown();
+    }
+}
+
 function startRun() {
     if (gameStarted) return;
     // The game's 'start' event (fired synchronously by the key press)
@@ -231,16 +384,14 @@ function handleEvents(events: any[]) {
     for (const ev of events) {
         if (ev.type === 'calibrated') {
             saveCalibration();
-            if (gameEnded) {
-                // Re-calibrated after a crash: restart (→ countdown → run).
-                setStatus('Calibrated ✓ — restarting');
-                pressKey('r');
-            } else if (!gameStarted) {
-                // First calibration: 3-2-1, then the run starts.
+            if (pendingGame) {
+                // New Game was requested and needed a calibration first.
                 setStatus('Calibrated ✓ — get ready!');
-                restartCountdown();
-            } else {
+                beginGame();
+            } else if (gameStarted && !gameEnded) {
                 setStatus('Re-calibrated ✓ — keep going!');
+            } else {
+                setStatus('Calibrated ✓ — press New Game to play');
             }
         } else if (!gameStarted || gameEnded) {
             continue; // gestures only drive a live run
@@ -299,16 +450,24 @@ game.on('gameStatus', (status: string) => {
     if (status === 'start') {
         gameStarted = true;
         gameEnded = false;
+        stoppedByUser = false;
+        lastData = {score: 0, coin: 0};
         cancelCountdown();
+        hideBoard();
+        ($('cv-stop') as HTMLButtonElement).style.display = 'block';
         themeAudio.currentTime = 0;
         themeAudio.play().catch(() => {});
-        setStatus('GO! Step • jump • squat');
+        setStatus(`GO ${playerName || ''}! Step • jump • squat`);
     } else if (status === 'end') {
         gameEnded = true;
         themeAudio.pause();
-        playCrash();
-        ($('cv-restart') as HTMLButtonElement).style.display = 'block';
-        setStatus('You crashed! Press Restart');
+        ($('cv-stop') as HTMLButtonElement).style.display = 'none';
+        if (!stoppedByUser) playCrash();
+        const name = playerName || 'Player';
+        const rank = recordRun(name, lastData.score, lastData.coin);
+        showBoard({name, score: lastData.score, rank});
+        setStatus(stoppedByUser ? 'Run stopped — press New Game to play again'
+                                : 'You crashed! Press New Game to play again');
     } else if (status === 'ready') {
         // Fresh run (r pressed): player model reloads, lanes reset to center,
         // and the run auto-starts after a 3-2-1 countdown.
@@ -317,16 +476,27 @@ game.on('gameStatus', (status: string) => {
         interpreter.zone = 0;
         interpreter.lane = 1;
         themeAudio.pause();
-        ($('cv-restart') as HTMLButtonElement).style.display = 'none';
+        hideBoard();
         setStatus('Get ready — stand centered!');
         restartCountdown();
     }
 });
+game.on('gameData', (d: any) => { lastData = {score: d.score, coin: d.coin}; });
 
-$('cv-restart').addEventListener('click', () => {
-    // 'r' fires 'ready' synchronously; that handler runs the 3-2-1
-    // countdown and starts the run — one button does everything.
-    pressKey('r');
+$('cv-newgame').addEventListener('click', openNamePrompt);
+$('cv-board-newgame').addEventListener('click', openNamePrompt);
+$('cv-board-close').addEventListener('click', hideBoard);
+$('cv-name-start').addEventListener('click', submitName);
+$('cv-name-cancel').addEventListener('click', closeNamePrompt);
+// Typing a nickname must not drive the game (p/r/w/a/s/d/f are global keys).
+$('cv-name-input').addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') submitName();
+    if (e.key === 'Escape') closeNamePrompt();
+});
+$('cv-stop').addEventListener('click', () => {
+    stoppedByUser = true;
+    controlPlayer()?.endRun();
 });
 
 // ---------- Pose engine ----------
@@ -393,6 +563,7 @@ const engine = new PoseEngine({
     onResults: (landmarks: any) => {
         latestLandmarks = landmarks;
         landmarksAt = performance.now();
+        updateGuide(landmarks);
         handleEvents(interpreter.update(landmarks, performance.now()));
         if (landmarksAt - lastStatsAt > 500) {
             lastStatsAt = landmarksAt;
@@ -516,6 +687,45 @@ $('cv-calibrate').addEventListener('click', () => {
     btn.textContent = 'Re-calibrate';
 });
 
+// ---------- Framing guidance (out of frame / too close / too far) ----------
+// Shown as a big banner on the feed once a problem persists ~300ms.
+let guideSince = 0;
+let guideText = '';
+function framingProblem(landmarks: any): [string, string] | null {
+    if (!landmarks) return ['Step into frame', "I can't see you"];
+    const vis = (i: number) => landmarks[i] && (landmarks[i].visibility ?? 1) > 0.5;
+    if (!vis(11) || !vis(12)) return ['Show your shoulders', 'Step back into frame'];
+    if (!vis(23) || !vis(24)) return ['Show your hips', 'Step back so your waist is visible'];
+    const hipX = (landmarks[23].x + landmarks[24].x) / 2;
+    const shY = (landmarks[11].y + landmarks[12].y) / 2;
+    const hipY = (landmarks[23].y + landmarks[24].y) / 2;
+    const torso = hipY - shY; // in frame heights
+    if (torso > 0.55) return ['Too close', 'Step back from the camera'];
+    if (torso < 0.12) return ['Come closer', "You're too far from the camera"];
+    if (hipX < 0.15) return ['Move right ➜', 'Get back to the center'];
+    if (hipX > 0.85) return ['⬅ Move left', 'Get back to the center'];
+    if (landmarks[0] && landmarks[0].y < 0.02) return ['Head cut off', 'Step back a little'];
+    return null;
+}
+function updateGuide(landmarks: any) {
+    const problem = framingProblem(landmarks);
+    const el = $('cv-guide');
+    if (!problem) {
+        guideSince = 0;
+        if (el.style.display !== 'none') el.style.display = 'none';
+        return;
+    }
+    const now = performance.now();
+    if (!guideSince) guideSince = now;
+    if (now - guideSince < 300) return;
+    const text = problem[0] + '|' + problem[1];
+    if (text !== guideText) {
+        guideText = text;
+        el.innerHTML = `${problem[0]}<small>${problem[1]}</small>`;
+    }
+    el.style.display = 'block';
+}
+
 // Test seam for automated checks.
 (window as any).__cvtest = {
     interpreter,
@@ -523,6 +733,12 @@ $('cv-calibrate').addEventListener('click', () => {
     mimic,
     audio: {theme: themeAudio, crash: crashAudio},
     roadLength,
+    board: {load: loadBoard, save: saveBoard, record: recordRun},
+    newGame(name: string) {
+        ($('cv-name-input') as HTMLInputElement).value = name;
+        submitName();
+    },
+    framingProblem,
     control: () => controlPlayer(),
     inject(landmarks: any, t = performance.now()) {
         const evs = interpreter.update(landmarks, t);
@@ -545,11 +761,12 @@ $('cv-calibrate').addEventListener('click', () => {
         interpreter.opts.aspect = (v.videoWidth / v.videoHeight) || 1;
         engine.start();
         ($('cv-calibrate') as HTMLButtonElement).disabled = false;
+        ($('cv-newgame') as HTMLButtonElement).disabled = false;
         if (restoreCalibration()) {
             $('cv-calibrate').textContent = 'Re-calibrate';
-            setStatus('Calibration remembered — press Re-calibrate to start');
+            setStatus('Calibration remembered — press New Game to play');
         } else {
-            setStatus('Stand centered, then Calibrate');
+            setStatus('Press New Game (you will calibrate first)');
         }
     } catch (err: any) {
         setStatus('Camera error: ' + err.message + ' — keyboard still works (P to start)');

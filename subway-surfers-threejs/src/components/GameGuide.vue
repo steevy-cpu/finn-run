@@ -13,11 +13,11 @@ const props = defineProps({
 const keyMap: Record<string, any> = {
   ready: {
       key: 'P',
-      text: 'or Calibrate (right panel) to start',
+      text: 'or New Game (right panel) to play',
   },
   end: {
       key: 'R',
-      text: 'or Restart (right panel) to play again',
+      text: 'or New Game (right panel) to play again',
   },
 };
 const textCompute = computed(() => {
