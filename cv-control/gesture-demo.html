@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Gesture Debug</title>
+    <style>
+        body {
+            margin: 0;
+            background: #111418;
+            color: #e8eaed;
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            padding: 20px;
+        }
+        h1 { margin: 0; font-size: 20px; }
+        #status { font-size: 14px; color: #9aa0a6; min-height: 18px; }
+        #layout { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+        #stage {
+            position: relative;
+            transform: scaleX(-1);   /* mirror: behaves like a mirror */
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 30px rgba(0,0,0,.5);
+        }
+        #video { display: block; }
+        #overlay { position: absolute; top: 0; left: 0; }
+        #countdown {
+            position: absolute; inset: 0;
+            display: none;
+            align-items: center; justify-content: center;
+            font-size: 110px; font-weight: 800; color: #ffeb3b;
+            text-shadow: 0 2px 12px rgba(0,0,0,.7);
+            transform: scaleX(-1);   /* un-mirror the digits */
+        }
+        #panel { display: flex; flex-direction: column; gap: 14px; min-width: 260px; }
+        #lanes { display: flex; gap: 8px; }
+        .lane {
+            flex: 1; padding: 18px 0; text-align: center;
+            border-radius: 10px; background: #1d2127; color: #5f6368;
+            font-weight: 700; font-size: 15px; transition: all .12s;
+        }
+        .lane.active { background: #00e676; color: #08320f; }
+        #badges { display: flex; gap: 8px; }
+        .badge {
+            flex: 1; padding: 14px 0; text-align: center; border-radius: 10px;
+            background: #1d2127; color: #5f6368; font-weight: 700; transition: all .1s;
+        }
+        .badge.on { color: #08210c; }
+        #jumpBadge.on { background: #40c4ff; color: #06283a; }
+        #duckBadge.on { background: #ffab40; color: #3a2506; }
+        #readout { font-size: 13px; color: #9aa0a6; font-variant-numeric: tabular-nums; white-space: pre; line-height: 1.6; }
+        button {
+            padding: 12px; font-size: 16px; font-weight: 700; border: 0;
+            border-radius: 10px; background: #7c4dff; color: white; cursor: pointer;
+        }
+        button:disabled { background: #333; color: #777; }
+        #log {
+            background: #16191d; border-radius: 10px; padding: 10px 14px;
+            font-size: 13px; font-family: ui-monospace, monospace;
+            min-height: 130px; max-height: 170px; overflow-y: auto;
+            width: 100%; box-sizing: border-box;
+        }
+        #log div { color: #80cbc4; }
+    </style>
+</head>
+<body>
+    <h1>Milestone 3 — Gesture Debug</h1>
+    <div id="status">Starting…</div>
+
+    <div id="layout">
+        <div id="stage">
+            <video id="video" autoplay playsinline muted></video>
+            <canvas id="overlay"></canvas>
+            <div id="countdown"></div>
+        </div>
+
+        <div id="panel">
+            <button id="calibrateBtn" disabled>Calibrate (stand centered)</button>
+            <div id="lanes">
+                <div class="lane" id="lane0">LEFT</div>
+                <div class="lane active" id="lane1">CENTER</div>
+                <div class="lane" id="lane2">RIGHT</div>
+            </div>
+            <div id="badges">
+                <div class="badge" id="jumpBadge">JUMP ⤒</div>
+                <div class="badge" id="duckBadge">DUCK ⤓</div>
+            </div>
+            <div id="readout">waiting…</div>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { PoseEngine } from "./pose.js";
+        import { GestureInterpreter } from "./gestures.js";
+
+        const $ = id => document.getElementById(id);
+        const interpreter = new GestureInterpreter();
+        let jumpFlashUntil = 0;
+
+        function logLine(text) {
+            const el = document.createElement("div");
+            el.textContent = `${(performance.now() / 1000).toFixed(1)}s  ${text}`;
+            $("log").prepend(el);
+            while ($("log").children.length > 40) $("log").lastChild.remove();
+            console.log("[Gesture]", text);
+        }
+
+        function handleEvents(events) {
+            for (const ev of events) {
+                if (ev.type === "calibrated") {
+                    logLine("calibrated ✓ neutral pose locked");
+                    $("status").textContent = "Calibrated — step, jump, squat!";
+                } else if (ev.type === "lane") {
+                    logLine(`lane ${ev.from} → ${ev.to}`);
+                } else if (ev.type === "jump") {
+                    jumpFlashUntil = performance.now() + 400;
+                    logLine("JUMP");
+                } else if (ev.type === "duck") {
+                    logLine("DUCK start");
+                } else if (ev.type === "duck_end") {
+                    logLine("duck end");
+                }
+            }
+        }
+
+        function renderHud() {
+            const d = interpreter.debug;
+            for (let i = 0; i < 3; i++) {
+                $("lane" + i).classList.toggle("active", interpreter.calibrated && d.lane === i);
+            }
+            $("jumpBadge").classList.toggle("on", performance.now() < jumpFlashUntil);
+            $("duckBadge").classList.toggle("on", d.ducking);
+            $("readout").textContent = interpreter.calibrated
+                ? `offsetX ${d.offsetX.toFixed(2)}   offsetY ${d.offsetY.toFixed(2)}\n` +
+                  `zone ${d.zone}   lane ${d.lane}   tracking ${d.tracking ? "yes" : "NO"}`
+                : `tracking ${d.tracking ? "yes" : "NO"}   — calibrate to begin`;
+        }
+
+        // Zone guides drawn under the skeleton, in the mirrored canvas space.
+        function drawGuides(ctx, canvas) {
+            if (!interpreter.calibrated) return;
+            const { calib } = interpreter;
+            const { laneEnter, jumpFire, duckFire } = interpreter.opts;
+            // offsetX = (calibX - hipX)/torso → boundary hipX = calibX ∓ laneEnter*torso
+            const xr = (calib.hipX - laneEnter * calib.torso) * canvas.width;
+            const xl = (calib.hipX + laneEnter * calib.torso) * canvas.width;
+            ctx.strokeStyle = "rgba(124, 77, 255, 0.8)";
+            ctx.setLineDash([10, 8]);
+            ctx.lineWidth = 3;
+            for (const x of [xl, xr]) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            // Jump / duck horizontal thresholds around neutral hip height.
+            const yJump = (calib.hipY - jumpFire * calib.torso) * canvas.height;
+            const yDuck = (calib.hipY + duckFire * calib.torso) * canvas.height;
+            ctx.strokeStyle = "rgba(64, 196, 255, 0.7)";
+            ctx.beginPath(); ctx.moveTo(0, yJump); ctx.lineTo(canvas.width, yJump); ctx.stroke();
+            ctx.strokeStyle = "rgba(255, 171, 64, 0.7)";
+            ctx.beginPath(); ctx.moveTo(0, yDuck); ctx.lineTo(canvas.width, yDuck); ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        const engine = new PoseEngine({
+            video: $("video"),
+            canvas: $("overlay"),
+            onStatus: msg => { $("status").textContent = msg; console.log("[GestureDemo]", msg); },
+            onDraw: drawGuides,
+            onResults: (landmarks, fps) => {
+                handleEvents(interpreter.update(landmarks, performance.now()));
+                renderHud();
+            },
+        });
+
+        $("calibrateBtn").addEventListener("click", async () => {
+            const btn = $("calibrateBtn");
+            btn.disabled = true;
+            const cd = $("countdown");
+            cd.style.display = "flex";
+            for (const n of [3, 2, 1]) {
+                cd.textContent = n;
+                await new Promise(r => setTimeout(r, 1000));
+            }
+            cd.style.display = "none";
+            interpreter.startCalibration();
+            logLine("calibrating…");
+            btn.disabled = false;
+            btn.textContent = "Re-calibrate";
+        });
+
+        // Test seam: lets automated tests drive the interpreter + HUD directly.
+        window.__test = {
+            interpreter,
+            inject(landmarks, t = performance.now()) {
+                const evs = interpreter.update(landmarks, t);
+                handleEvents(evs);
+                renderHud();
+                return evs;
+            },
+        };
+
+        try {
+            await engine.init();
+            engine.start();
+            $("calibrateBtn").disabled = false;
+            console.log("[GestureDemo] engine running");
+        } catch (err) {
+            $("status").textContent = "Error: " + err.message;
+            console.error("[GestureDemo] init failed", err);
+        }
+    </script>
+</body>
+</html>
