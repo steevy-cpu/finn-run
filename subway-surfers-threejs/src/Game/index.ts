@@ -10,8 +10,9 @@ import {disposeNode} from './utils/dispose';
 import { GameScene } from './scene';
 import Camera from './camera';
 import Time from './time';
-let stats = new Stats();
-document.body.appendChild(stats.dom);
+// FPS overlay is a dev tool only; never shown in the production build.
+const stats = import.meta.env.DEV ? new Stats() : null;
+if (stats) document.body.appendChild(stats.dom);
 
 export default class Game extends EventEmitter {
     static instance: Game;
@@ -57,7 +58,7 @@ export default class Game extends EventEmitter {
     }
     update() {
         const delta = this.time.delta / 1000;
-        stats.update();
+        stats?.update();
         this.renderer.update();
         this.player?.update && this.player.update(delta);
     }

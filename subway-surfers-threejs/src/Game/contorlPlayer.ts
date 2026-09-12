@@ -600,7 +600,9 @@ handleLeftRightMove() {
         this.coinRotate();
         this.checkGameStatus();
         if (this.gameStatus === GAME_STATUS.START) {
-            this.game.emit('gameData', {score: this.score += 20, coin: this.coin, mistake: this.smallMistake});
+            // 1200 points per second regardless of frame rate (was +20/frame).
+            this.score += 1200 * delta;
+            this.game.emit('gameData', {score: Math.floor(this.score), coin: this.coin, mistake: this.smallMistake});
         }
         // 重力或者跳跃
         if (this.isJumping || !this.downCollide) {

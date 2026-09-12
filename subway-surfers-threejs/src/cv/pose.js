@@ -2,10 +2,11 @@
 // Emits per-frame landmarks to an onResults callback; drawing happens on the
 // canvas passed in, sized to match the video feed.
 
-import {
-    PoseLandmarker,
-    FilesetResolver,
-} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+// Vendored: the npm package is bundled and the wasm + model live in
+// public/mediapipe/, so the game works with no internet connection.
+import { PoseLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+const WASM_PATH = "/mediapipe/wasm";
+const MODEL_PATH = "/mediapipe/pose_landmarker_lite.task";
 
 // Skeleton edges over MediaPipe's 33-landmark model (subset that reads well).
 const POSE_CONNECTIONS = [
@@ -41,13 +42,10 @@ export class PoseEngine {
 
     async init() {
         this.onStatus("Loading MediaPipe model…");
-        const vision = await FilesetResolver.forVisionTasks(
-            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-        );
+        const vision = await FilesetResolver.forVisionTasks(WASM_PATH);
         this.landmarker = await PoseLandmarker.createFromOptions(vision, {
             baseOptions: {
-                modelAssetPath:
-                    "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+                modelAssetPath: MODEL_PATH,
                 delegate: "GPU",
             },
             runningMode: "VIDEO",
