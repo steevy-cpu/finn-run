@@ -4,7 +4,7 @@
 // @ts-ignore — plain JS module
 import {PoseEngine} from './pose.js';
 // @ts-ignore — plain JS module
-import {GestureInterpreter} from './gestures.js';
+import {GestureInterpreter, applyBand} from './gestures.js';
 import {ArmMimic} from './mimic';
 import Player from '@/Game/player';
 import Game from '@/Game';
@@ -162,13 +162,9 @@ panel.innerHTML = `
             <input type="range" id="cv-lane" min="0.15" max="0.60" step="0.01">
             <span class="val" id="cv-lane-val"></span>
         </label>
-        <label>Jump
-            <input type="range" id="cv-jump" min="0.06" max="0.30" step="0.01">
-            <span class="val" id="cv-jump-val"></span>
-        </label>
-        <label>Squat
-            <input type="range" id="cv-duck" min="0.10" max="0.40" step="0.01">
-            <span class="val" id="cv-duck-val"></span>
+        <label>Jump / squat band
+            <input type="range" id="cv-band" min="0.16" max="0.60" step="0.02">
+            <span class="val" id="cv-band-val"></span>
         </label>
     </div>
 `;
@@ -658,21 +654,20 @@ document.addEventListener('fullscreenchange', () => {
 });
 
 // ---------- Sensitivity tuning (persisted) ----------
-// v3: bumped when the default thresholds change so stale saved tuning
+// v4: bumped when the default thresholds change so stale saved tuning
 // (based on the old, wider box) doesn't override the tighter defaults.
-const TUNING_KEY = 'cv-tuning-v3';
+const TUNING_KEY = 'cv-tuning-v4';
 const SLIDERS: Array<{id: string; opt: string}> = [
     {id: 'cv-lane', opt: 'laneEnter'},
-    {id: 'cv-jump', opt: 'jumpFire'},
-    {id: 'cv-duck', opt: 'duckFire'},
+    {id: 'cv-band', opt: 'vertBand'},
 ];
 
 function applyTuning(opts: Record<string, number>) {
     Object.assign(interpreter.opts, opts);
-    // Hysteresis and rearm thresholds scale with their trigger thresholds.
+    // Hysteresis scales with the step threshold; the jump/squat lines keep
+    // their 25%/75% split of the vertical band.
     interpreter.opts.laneExit = interpreter.opts.laneEnter * 0.66;
-    interpreter.opts.jumpRearm = interpreter.opts.jumpFire * 0.4;
-    interpreter.opts.duckRearm = interpreter.opts.duckFire * 0.43;
+    applyBand(interpreter.opts);
 }
 
 function loadTuning(): Record<string, number> {

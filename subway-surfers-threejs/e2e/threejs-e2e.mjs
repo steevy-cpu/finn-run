@@ -508,7 +508,7 @@ const tuning = await evalJs(`
     return JSON.stringify({
         laneEnter: opts.laneEnter,
         laneExitScaled: Math.abs(opts.laneExit - 0.60 * 0.66) < 1e-9,
-        persisted: JSON.parse(localStorage.getItem('cv-tuning-v3') || '{}').laneEnter === 0.60,
+        persisted: JSON.parse(localStorage.getItem('cv-tuning-v4') || '{}').laneEnter === 0.60,
     });
 })()
 `).then(JSON.parse);

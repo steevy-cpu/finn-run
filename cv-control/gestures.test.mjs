@@ -1,6 +1,6 @@
 // Unit tests for GestureInterpreter using synthetic landmark streams.
 // Run: node cv-control/gestures.test.mjs
-import { GestureInterpreter, DEFAULTS } from "./gestures.js";
+import { GestureInterpreter, DEFAULTS, applyBand } from "./gestures.js";
 
 let passed = 0, failed = 0;
 function check(name, cond) {
@@ -163,8 +163,8 @@ console.log("baseline adaptation");
     for (let i = 0; i < 300; i++) g.update(body(0.48, 0.6), (tt += 33));
     check("center re-centers onto slow drift", Math.abs(g.calib.hipX - 0.48) < 0.005);
     // Small vertical drift follows too.
-    for (let i = 0; i < 300; i++) g.update(body(0.48, 0.61), (tt += 33));
-    check("vertical baseline follows slow drift", Math.abs(g.calib.hipY - 0.61) < 0.005);
+    for (let i = 0; i < 300; i++) g.update(body(0.48, 0.605), (tt += 33));
+    check("vertical baseline follows slow drift", Math.abs(g.calib.hipY - 0.605) < 0.005);
 }
 {
     // A held squat is a gesture, not drift: the baseline must not chase it.
@@ -211,11 +211,11 @@ console.log("predictive jump");
     check("fast rise fires early jump", evs.length === 1 && evs[0].type === "jump");
 }
 {
-    // The same +0.10 reached slowly (creeping up over many frames) must not.
+    // A slow creep upward (well under the jump line) must not fire.
     const { g, t } = freshCalibrated();
     let evs = [];
-    for (let i = 1; i <= 10; i++) evs = evs.concat(g.update(body(0.5, 0.6 - 0.0025 * i), t + 33 * i));
-    check("slow creep to +0.10 does not fire", evs.length === 0);
+    for (let i = 1; i <= 10; i++) evs = evs.concat(g.update(body(0.5, 0.6 - 0.0015 * i), t + 33 * i));
+    check("slow creep to +0.06 does not fire", evs.length === 0);
 }
 {
     // Standing up from a HELD squat is a fast rise too — must not fire a jump.
@@ -285,6 +285,17 @@ console.log("launch from the dip");
     const evs = g.update(body(0.5, 0.60), (tt += 33)); // +0.32 in 33ms from the bottom
     const types = evs.map(e => e.type);
     check("duck→jump conversion", types.includes("duck_end") && types.includes("jump") && !g.ducking);
+}
+
+console.log("vertical band ratio");
+{
+    // Jump line at 25% of the band above the hips, squat line at 75% below.
+    check("defaults keep the 25/75 split",
+        Math.abs(DEFAULTS.jumpFire / DEFAULTS.vertBand - 0.25) < 1e-9
+        && Math.abs(DEFAULTS.duckFire / DEFAULTS.vertBand - 0.75) < 1e-9);
+    const g = new GestureInterpreter();
+    applyBand(g.opts, 0.40);
+    check("applyBand rescales both lines", Math.abs(g.opts.jumpFire - 0.10) < 1e-9 && Math.abs(g.opts.duckFire - 0.30) < 1e-9);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

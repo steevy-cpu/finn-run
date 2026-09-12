@@ -26,26 +26,42 @@ const L_ANKLE = 27, R_ANKLE = 28;
 export const DEFAULTS = {
     laneEnter: 0.25,      // |offsetX| to enter a side zone (step size)
     laneExit: 0.165,      // |offsetX| to return to center (hysteresis)
-    jumpFire: 0.12,       // upward hip rise to fire a jump
-    jumpRearm: 0.048,     // must come back below this before next jump
+    // Vertical command band around the (smoothed) hip point: the JUMP line
+    // sits jumpRatio of the band above it, the SQUAT line the rest below.
+    // Default 0.32 torso → jump at +0.08, squat at -0.24 (25% / 75%).
+    vertBand: 0.32,
+    jumpRatio: 0.25,
+    jumpFire: 0.08,       // = vertBand * jumpRatio (derived; see applyBand)
+    jumpRearm: 0.032,     // must come back below this before next jump
     jumpCooldownMs: 350,  // min time between jumps
     jumpVelFire: 1.6,     // torso/s upward: predictive early jump...
-    jumpVelMinY: 0.05,    // ...once the hips have risen at least this much
-    duckFire: 0.16,       // downward hip drop to fire a duck (squat depth)
-    duckRearm: 0.069,     // rise back above this ends the duck
+    jumpVelMinY: 0.04,    // ...once the hips have risen at least this much
+    duckFire: 0.24,       // = vertBand * (1 - jumpRatio) (derived)
+    duckRearm: 0.103,     // rise back above this ends the duck
     duckHoldMs: 100,      // squat must persist this long before a roll fires
     duckCancelMs: 150,    // a launch this soon after a roll converts it to a jump
     ankleJumpFire: 0.035, // both ankles up this much = feet off the ground → jump
     ankleRearm: 0.015,    // ankles back below this (plus hips) re-arms the jump
-    launchRise: 0.10,     // hip rise from the recent dip bottom (at speed) → jump
+    launchRise: 0.08,     // hip rise from the recent dip bottom (at speed) → jump
     launchMinY: -0.03,    // ...but only once the hips are back near neutral
     launchWindowMs: 300,  // how far back to look for the dip bottom
     minVisibility: 0.5,   // required visibility of shoulders + hips
     calibFrames: 20,      // consecutive still frames required to calibrate (~0.7s)
     calibStillTol: 0.15,  // movement (in torso units) that restarts calibration
-    adaptRate: 0.02,      // per-frame baseline drift correction near neutral
+    adaptRate: 0.08,      // per-frame tracking of the box toward the player (~0.4s)
     aspect: 1,            // video width/height — makes x and y distances share units
 };
+
+// Derive the jump/squat thresholds from the band + ratio (keeps 25%/75%).
+export function applyBand(opts, band = opts.vertBand, ratio = opts.jumpRatio) {
+    opts.vertBand = band;
+    opts.jumpRatio = ratio;
+    opts.jumpFire = band * ratio;
+    opts.duckFire = band * (1 - ratio);
+    opts.jumpRearm = opts.jumpFire * 0.4;
+    opts.duckRearm = opts.duckFire * 0.43;
+    return opts;
+}
 
 function median(values) {
     const s = [...values].sort((a, b) => a - b);
@@ -168,7 +184,7 @@ export class GestureInterpreter {
         // sideways, stepping closer/farther, camera settling). Gestures are
         // fast and cross the gates below, so they never get absorbed.
         const k = this.opts.adaptRate;
-        const vGate = Math.min(this.opts.jumpFire, this.opts.duckFire) * 0.4;
+        const vGate = this.opts.jumpFire * 0.5;
         if (Math.abs(offsetY) < vGate) {
             this.calib.hipY += (core.hip.y - this.calib.hipY) * k;
             this.calib.torso += (core.torso - this.calib.torso) * k;
@@ -230,7 +246,7 @@ export class GestureInterpreter {
         const risingFast = !afterSquat && vy > o.jumpVelFire && offsetY > o.jumpVelMinY;
         const launched = !afterSquat && vy > o.jumpVelFire
             && (offsetY - dipMin) > o.launchRise && offsetY > o.launchMinY;
-        const wantJump = offsetY > o.jumpFire || feetOff || risingFast || launched;
+        const wantJump = feetOff || (!afterSquat && (offsetY > o.jumpFire || risingFast || launched));
         const canJump = this.jumpArmed && nowMs - this._lastJumpAt > o.jumpCooldownMs;
 
         const fireJump = () => {
