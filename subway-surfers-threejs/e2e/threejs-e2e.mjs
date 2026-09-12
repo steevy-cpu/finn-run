@@ -149,6 +149,16 @@ await evalJs(`
 check("New Game prompt closes on submit", await evalJs(`window.__nameHidden === true`));
 check("New Game starts calibration when uncalibrated", await evalJs(`window.__calibratingAfterNewGame === true`));
 check("nickname remembered", await evalJs(`localStorage.getItem('cv-player') === 'Tester'`));
+{
+    // Face snapshot is POSTed to the game server and lands in photos/.
+    await new Promise(r => setTimeout(r, 1500));
+    const fs = await import("fs");
+    const dir = new URL("../photos/", import.meta.url);
+    let shots = [];
+    try { shots = fs.readdirSync(dir).filter(f => /^Tester-.*\.jpg$/.test(f)); } catch {}
+    const fresh = shots.some(f => Date.now() - fs.statSync(new URL(f, dir)).mtimeMs < 20000);
+    check("face photo saved to photos/ on New Game", fresh);
+}
 await new Promise(r => setTimeout(r, 300));
 check("countdown shows only AFTER calibration completes", await evalJs(`
     window.__cvtest.interpreter.calibrated && !window.__cvtest.interpreter.debug.calibrating
@@ -269,10 +279,10 @@ const restart = await evalJs(`
     out.ended = ctl.gameStatus === 'end';
     out.themePausedOnEnd = T.audio.theme.paused;
     out.crashFired = T.audio.crash.currentTime > 0 || !T.audio.crash.paused;
-    out.boardShown = document.getElementById('cv-board').hidden === false;
+    // A crash records the run but does NOT pop the leaderboard (Stop does).
+    out.boardHiddenOnCrash = document.getElementById('cv-board').hidden === true;
     const top = T.board.load();
     out.recorded = top.length === 1 && top[0].name === 'Tester' && top[0].score > 0;
-    out.boardText = document.getElementById('cv-board-you').textContent;
     // Let the death animation settle so the spine is clearly off bind pose.
     await sleep(1500);
     const spine = () => T.control().model.getObjectByName('mixamorigSpine').quaternion.toArray();
@@ -303,8 +313,8 @@ const restart = await evalJs(`
 `);
 check("2 mistakes end the run", restart.ended);
 check("theme stops + crash sound on death", restart.themePausedOnEnd && restart.crashFired);
-check("leaderboard shown after crash", restart.boardShown);
-check("run recorded under the nickname", restart.recorded && /Tester: .* rank #1/.test(restart.boardText));
+check("leaderboard NOT shown on a crash", restart.boardHiddenOnCrash);
+check("run recorded under the nickname", restart.recorded);
 check("death pose moved the spine off bind", restart.deadPoseDiffers);
 check("New Game hides the leaderboard", restart.boardHiddenOnNewGame);
 check("respawn resets skeleton (no dead pose in countdown)", restart.respawnResetPose);
@@ -433,14 +443,17 @@ const stop = await evalJs(`
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const T = window.__cvtest;
     T.audio.crash.pause(); T.audio.crash.currentTime = 0;
-    const before = T.board.load().length;
     document.getElementById('cv-stop').click();
     await sleep(300);
     const ctl = T.control();
+    const board = T.board.load();
     const out = {
         ended: ctl.gameStatus === 'end' && ctl.gameStart === false && ctl.status !== 'die',
         boardShown: document.getElementById('cv-board').hidden === false,
-        recorded: T.board.load().length === before + 1,
+        // Several runs by the same nickname collapse into ONE row (best score).
+        onePerPlayer: board.filter(e => e.name === 'Tester').length === 1 && board.length === 1,
+        youText: /Tester/.test(document.getElementById('cv-board-you').textContent),
+        confetti: !!document.getElementById('cv-confetti'),
         noCrashSound: T.audio.crash.currentTime === 0 && T.audio.crash.paused,
         statusStopped: /stopped/i.test(document.getElementById('cv-status').textContent),
         topThreeMax: document.querySelectorAll('#cv-board-list li').length <= 3,
@@ -460,7 +473,8 @@ const stop = await evalJs(`
 })()
 `);
 check("Stop ends the run without a death", stop.ended && stop.noCrashSound && stop.statusStopped);
-check("Stop shows the top-three leaderboard", stop.boardShown && stop.recorded && stop.topThreeMax);
+check("Stop shows the top-three leaderboard with confetti", stop.boardShown && stop.youText && stop.topThreeMax && stop.confetti);
+check("leaderboard keeps one row per player (best score)", stop.onePerPlayer);
 check("New Game after Stop runs again", stop.restarted);
 
 // 7g. Framing guidance decisions (pure function on landmarks).

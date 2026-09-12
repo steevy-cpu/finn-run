@@ -65,14 +65,21 @@ style.textContent = `
 .cv-btn-secondary { background: #2a2f36; }
 #cv-stop { background: #ff5252; display: none; }
 #cv-guide {
-    position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%);
-    z-index: 6; display: none; padding: 18px 34px; border-radius: 16px;
-    background: rgba(255, 82, 82, 0.92); color: #fff; text-align: center;
-    font-size: 34px; font-weight: 800; line-height: 1.2;
-    box-shadow: 0 10px 40px rgba(0,0,0,.5); pointer-events: none;
-    white-space: nowrap;
+    position: absolute; left: 50%; top: 48px; transform: translateX(-50%);
+    z-index: 6; display: none; align-items: center; gap: 12px;
+    padding: 10px 18px 10px 14px; border-radius: 12px;
+    background: rgba(17, 20, 24, 0.88); border-left: 4px solid #ff5252;
+    color: #fff; font-size: 17px; font-weight: 700; line-height: 1.25;
+    box-shadow: 0 6px 24px rgba(0,0,0,.45); pointer-events: none;
+    white-space: nowrap; backdrop-filter: blur(6px);
 }
-#cv-guide small { display: block; font-size: 17px; font-weight: 500; opacity: .9; margin-top: 4px; }
+#cv-guide.on { display: flex; }
+#cv-guide .ico { font-size: 22px; }
+#cv-guide small { display: block; font-size: 12.5px; font-weight: 500; color: #c5cad1; margin-top: 2px; }
+#cv-confetti {
+    position: fixed; left: 0; top: 0; width: 50vw; height: 100vh;
+    z-index: 1600; pointer-events: none;
+}
 .cv-modal {
     position: fixed; left: 0; top: 0; width: 50vw; height: 100vh; z-index: 1500;
     display: flex; align-items: center; justify-content: center;
@@ -287,26 +294,40 @@ function loadBoard(): Entry[] {
 function saveBoard(entries: Entry[]) {
     try { localStorage.setItem(BOARD_KEY, JSON.stringify(entries)); } catch {}
 }
-// Records a finished run; returns the entry's 1-based rank.
-function recordRun(name: string, score: number, coins: number): number {
+// Records a finished run. One entry per player (best score wins), so two
+// people playing many rounds still show as two rows. Returns the player's
+// 1-based rank and whether this run is a new personal best.
+function recordRun(name: string, score: number, coins: number): {rank: number; best: number; isBest: boolean} {
     const entries = loadBoard();
-    const entry: Entry = {name, score, coins, at: Date.now()};
-    entries.push(entry);
+    const key = name.trim().toLowerCase();
+    const idx = entries.findIndex(e => e.name.trim().toLowerCase() === key);
+    let isBest = true;
+    if (idx < 0) {
+        entries.push({name, score, coins, at: Date.now()});
+    } else if (score > entries[idx].score) {
+        entries[idx] = {name, score, coins, at: Date.now()};
+    } else {
+        isBest = false;
+    }
     entries.sort((a, b) => b.score - a.score || b.coins - a.coins);
     saveBoard(entries.slice(0, 100));
-    return entries.indexOf(entry) + 1;
+    const rank = entries.findIndex(e => e.name.trim().toLowerCase() === key) + 1;
+    return {rank, best: entries[rank - 1].score, isBest};
 }
-function showBoard(you?: {name: string; score: number; rank: number}) {
+function showBoard(you?: {name: string; score: number; rank: number; best: number; isBest: boolean}) {
     const top = loadBoard().slice(0, 3);
     const medals = ['🥇', '🥈', '🥉'];
+    const youKey = you?.name.trim().toLowerCase();
     $('cv-board-list').innerHTML = top.length
-        ? top.map((e, i) => `<li${you && e.name === you.name && e.score === you.score ? ' class="you"' : ''}>
+        ? top.map((e, i) => `<li${youKey && e.name.trim().toLowerCase() === youKey ? ' class="you"' : ''}>
             <span class="medal">${medals[i]}</span>
             <span class="name">${escapeHtml(e.name)}</span>
             <span class="score">${e.score.toLocaleString()} · ${e.coins} 🪙</span></li>`).join('')
         : '<li><span class="name">No runs yet — be the first!</span></li>';
     $('cv-board-you').textContent = you
-        ? `${you.name}: ${you.score.toLocaleString()} points — rank #${you.rank}`
+        ? (you.isBest
+            ? `${you.name}: ${you.score.toLocaleString()} points — new personal best! Rank #${you.rank}`
+            : `${you.name}: ${you.score.toLocaleString()} points (best ${you.best.toLocaleString()}) — rank #${you.rank}`)
         : '';
     ($('cv-board') as HTMLElement).hidden = false;
 }
@@ -329,6 +350,7 @@ function submitName() {
     playerName = input.value.trim().slice(0, 16) || 'Player';
     try { localStorage.setItem(NAME_KEY, playerName); } catch {}
     closeNamePrompt();
+    captureFace(playerName); // fire-and-forget snapshot for the photos/ folder
     pendingGame = true;
     if (interpreter.calibrated) {
         beginGame();
@@ -462,12 +484,17 @@ game.on('gameStatus', (status: string) => {
         gameEnded = true;
         themeAudio.pause();
         ($('cv-stop') as HTMLButtonElement).style.display = 'none';
-        if (!stoppedByUser) playCrash();
         const name = playerName || 'Player';
-        const rank = recordRun(name, lastData.score, lastData.coin);
-        showBoard({name, score: lastData.score, rank});
-        setStatus(stoppedByUser ? 'Run stopped — press New Game to play again'
-                                : 'You crashed! Press New Game to play again');
+        const result = recordRun(name, lastData.score, lastData.coin);
+        if (stoppedByUser) {
+            // Stop = "I'm done": celebrate and show the top three.
+            showBoard({name, score: lastData.score, ...result});
+            launchConfetti();
+            setStatus('Run stopped — press New Game to play again');
+        } else {
+            playCrash();
+            setStatus('You crashed! Press New Game to play again');
+        }
     } else if (status === 'ready') {
         // Fresh run (r pressed): player model reloads, lanes reset to center,
         // and the run auto-starts after a 3-2-1 countdown.
@@ -712,7 +739,7 @@ function updateGuide(landmarks: any) {
     const el = $('cv-guide');
     if (!problem) {
         guideSince = 0;
-        if (el.style.display !== 'none') el.style.display = 'none';
+        el.classList.remove('on');
         return;
     }
     const now = performance.now();
@@ -721,9 +748,73 @@ function updateGuide(landmarks: any) {
     const text = problem[0] + '|' + problem[1];
     if (text !== guideText) {
         guideText = text;
-        el.innerHTML = `${problem[0]}<small>${problem[1]}</small>`;
+        el.innerHTML = `<span class="ico">👀</span><div>${problem[0]}<small>${problem[1]}</small></div>`;
     }
-    el.style.display = 'block';
+    el.classList.add('on');
+}
+
+// ---------- Confetti (Stop → leaderboard celebration) ----------
+function launchConfetti(durationMs = 2600) {
+    const c = document.createElement('canvas');
+    c.id = 'cv-confetti';
+    c.width = Math.floor(window.innerWidth / 2);
+    c.height = window.innerHeight;
+    document.body.appendChild(c);
+    const ctx = c.getContext('2d')!;
+    const colors = ['#7c4dff', '#ffeb3b', '#ff5252', '#00e676', '#40c4ff', '#ff9800'];
+    const parts = Array.from({length: 140}, () => ({
+        x: Math.random() * c.width, y: -20 - Math.random() * c.height * 0.5,
+        vx: (Math.random() - 0.5) * 2.2, vy: 2.5 + Math.random() * 3.5,
+        w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
+        rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.25,
+        color: colors[Math.floor(Math.random() * colors.length)],
+    }));
+    const t0 = performance.now();
+    (function frame() {
+        const t = performance.now() - t0;
+        ctx.clearRect(0, 0, c.width, c.height);
+        ctx.globalAlpha = t > durationMs - 600 ? Math.max(0, (durationMs - t) / 600) : 1;
+        for (const p of parts) {
+            p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.vx += Math.sin(t / 300 + p.y / 50) * 0.02;
+            ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+            ctx.fillStyle = p.color; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+            ctx.restore();
+        }
+        if (t < durationMs) requestAnimationFrame(frame); else c.remove();
+    })();
+}
+
+// ---------- Face snapshot on New Game (saved server-side in photos/) ----------
+// Crops around the face using the pose landmarks (nose + ears); falls back
+// to a center crop. Posted to the local game server; failures are silent.
+async function captureFace(name: string) {
+    const video = $('cv-video') as HTMLVideoElement;
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) return;
+    const lm = latestLandmarks;
+    let cx = 0.5, cy = 0.4, wFrac = 0.28;
+    if (lm && lm[0] && lm[7] && lm[8] && (lm[7].visibility ?? 1) > 0.4 && (lm[8].visibility ?? 1) > 0.4) {
+        cx = lm[0].x;
+        cy = lm[0].y - 0.03;
+        wFrac = Math.max(0.14, Math.abs(lm[8].x - lm[7].x) * 2.1);
+    }
+    const bw = Math.min(vw, wFrac * vw);
+    const bh = Math.min(vh, bw * 1.25);
+    const sx = Math.max(0, Math.min(vw - bw, cx * vw - bw / 2));
+    const sy = Math.max(0, Math.min(vh - bh, cy * vh - bh / 2));
+    const out = document.createElement('canvas');
+    out.width = 320; out.height = 400;
+    const ctx = out.getContext('2d')!;
+    ctx.translate(out.width, 0); ctx.scale(-1, 1); // selfie orientation
+    ctx.drawImage(video, sx, sy, bw, bh, 0, 0, out.width, out.height);
+    const blob: Blob | null = await new Promise(r => out.toBlob(r, 'image/jpeg', 0.9));
+    if (!blob) return;
+    try {
+        const res = await fetch(`/api/photo?name=${encodeURIComponent(name)}`, {
+            method: 'POST', body: blob, headers: {'Content-Type': 'image/jpeg'},
+        });
+        if (res.ok) console.log('[CV] photo saved', await res.text());
+    } catch {}
 }
 
 // Test seam for automated checks.
