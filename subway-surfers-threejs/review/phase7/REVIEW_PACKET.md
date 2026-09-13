@@ -1,71 +1,74 @@
-# Finn Run — Phase 7 (Arturo pursuer): status packet
+# Finn Run — Phase 7 (Arturo pursuer): integration packet
 
-Branch `phase2-environment`, 2026-09-13. Phases 2, 3, 4, 5 (batch 1) and 6 are intact; Phase 6 default remains `original`, Phase 4 remains opt-in.
+Branch `phase2-environment`, 2026-09-13. Phases 2, 3, 4, 5 (batch 1) and 6 intact; Phase 6 default `original`, Phase 4 opt-in. Finn's GLB sha256 unchanged (`aa15c58f…`).
 
-## Honest status
+## Status
 | Stage | Status |
 |---|---|
-| Reference preparation | Done by the packets (study sheet + `Arturo_Neutral_Front.png`). Reference uploaded to Higgsfield storage as media `53fa11c9-1302-42dc-9b16-be6f29b87242` (free). |
-| Actual model creation | **Not started — waiting for approval of the quoted spend (below).** No Arturo GLB exists in the repository; none was generated. |
-| Rig / clip validation | Cannot run without the asset. The validation path is built and exercised with a labelled stand-in (see below). |
-| Runtime integration | **Built and verified with a stand-in rig**, behind `?arturo=1` (default off). Not claimed complete for Arturo: the pursuer is inert until `public/assets/glb/arturo.glb` exists. |
+| Asset | `public/assets/glb/arturo.glb` delivered (Blender-rigged, editable `arturo_3d_work/arturo_rigged.blend`). Inspected in the game's own three.js: see `ARTURO_ASSET_CONTRACT.md` for measured values. Two delivery notes were wrong and are handled by measurement: the file faces **+Z** only when measured before the pivot (it is turned to −Z), and the material omits `metallicFactor` (glTF default 1). |
+| Rig / clips | 24 joints, 4 influences, both clips in place (hip travel 0.10 / 0.06 m), looping; scale tracks stripped. |
+| Runtime integration | **Done, opt-in** `?arturo=1` (default off, persisted `cv-arturo`). Missing/failed asset → pursuer inert, game unchanged (the e2e's `arturo=0` run and the earlier missing-file state both pass). |
+| Catch video / cinematics | Not part of this phase; results behaviour unchanged. |
 
-## Route found (existing tools, no new subscription)
-This Claude Code session's Higgsfield connection exposes `generate_3d` (the ChatGPT connection did not). Model catalogue: `image_to_3d` (Meshy) with texturing, auto-rigging and a 678-clip animation library; `3d_rigging` re-rigs/animates an existing 3D job. Account: plan `plus`, balance **1197 credits** at quote time.
+## Preview
+- On: `http://localhost:5180/?env=phase2&phase3=1&fx=1&finnPolish=original&ui=phase4&arturo=1`
+- Off: `http://localhost:5180/?env=phase2&phase3=1&fx=1&finnPolish=original&ui=phase4&arturo=0`
 
-Quoted (preflight, nothing submitted):
-| Job | Settings | Quote |
-|---|---|---|
-| A. `image_to_3d` | texture on, rigging on, animation on → `run_fast_2_inplace` (id 658), 12k target polys, triangle, a-pose, height 1.86, no PBR, texture prompt from `model-settings.json` | **38 credits** |
-| A′. same without animation | | 35 credits |
-| B. `3d_rigging` on job A's GLB | height 1.86, animation `Idle` (id 0) | **8 credits** |
-| **Total for run + idle on one mesh** | | **46 credits** (≈ 3.8 % of balance) |
+## Actual scale and placement (measured in-game, camera at Finn +17 z / +9 y, look-at +5.8 y, fov 45)
+| Quantity | Value |
+|---|---|
+| Finn runtime height / root / sole | 5.241 / 0.316 / 0.262 (scale 2.8) |
+| Arturo authored height → runtime scale | 1.700 → **3.0828** (= Finn's height 5.241; the 1.094 note is not used — Finn's runtime bounds are) |
+| Armature | node scale 0.01, cm bones; skinned bounds measured after `updateMatrixWorld`, so the 0.01 is honoured, not re-applied |
+| Facing | authored +Z (head→face +0.10, foot→toe +0.12) → pivot rotated π to run −Z; verified in captures |
+| Feet | run-cycle minimum lifted to the rail surface; in-game lowest point 0.10 (Finn 0.15) |
+| Base gap | 4.5 behind (+Z), drifting to ≤ 7.2 while clean |
+| Lateral | 2.0 toward the road centre (Finn at x=5 → Arturo at 3; Finn at 0 → Arturo at 2) |
+| Mistake reaction | once per committed increase: gap 4.64 → 3.10 in ~2 s, then recovers |
+| Lane follow | trail-based; a lane change is followed in ~0.75 s (2.0 → 2.6 → 3.0) |
+| Speed sync | Finn 20 u/s; stride 1.245 × 3.08 = 3.84 u/cycle → exact cadence would be timeScale 2.6 (5.2 cycles/s); **capped at 1.6** (3.2 cycles/s, vs Finn's 1.14). Residual foot slide ≈ 38 % at full speed — deliberate; exact sync looked like a blur. Tunable: `maxCadence`. |
+| Hidden while overlapping a passed obstacle | yes (one short upward ray; e.g. sample 4 in the probe) |
 
-Notes: the catalogue's default "run: 16 (RunFast)" is not in-place; the `_inplace` variants exist (ids 657–665, `Lean_Forward_Sprint_inplace` 644). Job B yields a second GLB with the idle clip on the same mesh/rig; the two clips are merged into one file before use (node-name merge; the loader also strips scale tracks and root-travel position tracks so both clips are guaranteed in-place). If Meshy's rig/clips fail inspection, the alternative is Steeve's Finn workflow: Mixamo-style rig + clips baked in Blender by Blender-Claude, using job A′ (35 credits) or the study sheet as the modelling reference — no further paid generation.
+Captures (`shots/`, gameplay camera, 720×900 game pane): `arturo-run.png`, `arturo-run-lane.png` (after a lane change), `arturo-run-pressure.png` (after a mistake), `arturo-idle-end.png` (Stop → idle behind Finn). `pursuer-run-standin.png` is the earlier stand-in and is kept only for the history.
 
-**Exact manual step required from Steeve:** reply "approve 46 credits" (or A only / A′ only). Nothing paid runs before that.
-
-## Existing Arturo model in the repo?
-None. `public/assets/glb/` holds Finn, the Mixamo donor `player1.glb`, coin/train/houses and the Phase 2/3 kits. Finn's own workflow, from the repo history: Tripo image-to-3D mesh (`tripo_material_…`) → 23-bone Mixamo-named rig → 9 clips baked in Blender by Steeve (the runtime borrows nothing from Tripo/Meshy at runtime).
-
-## What was built (all opt-in, default off)
+## Code (changed files)
 | File | Change |
 |---|---|
-| `src/Game/pursuer.ts` (new) | `Pursuer`: owns one actor + one `AnimationMixer`; loads once (GLTFLoader, not the shared cache); normalises pivot (soles y=0, centred), scale (to runtime height 5.3 ≈ Finn's measured 5.21), facing (+Z authored → −Z run direction); strips embedded cameras/lights; forces no shadows, `raycast = noop`, frustumCulled off; sanitises clips (drops scale tracks and position tracks whose travel ≥ 25 % of model height); maps `run`/`idle` by name; publishes a `report` (bounds, triangles, materials, textures, bones, influences, clips, dropped tracks). Runs on Finn's recorded trail a gap behind (+Z), lateral offset toward road centre, hides while overlapping a passed obstacle (one short upward ray against the obstacle groups), reacts once per committed mistake (gap closes 1.4 for ~3 s, then drifts back, bounded, delta-seconds smoothing). `ready` → hidden (scene is emptied by the restart handler), `start` → re-attached + `run`, `end` → `idle`. `dispose()` frees owned geometry/materials/textures, uncaches the mixer, removes the listener. |
-| `src/Game/envart.ts` | `PURSUER` (`?arturo=1|0`, persisted `cv-arturo`, default off) and `PURSUER_URL` (`?arturoModel=/assets/…glb`, not persisted, tests only). |
-| `src/Game/index.ts` | Creates the pursuer when flagged; updates it right after `player.update` inside the existing loop (no new RAF); disposes it in `disposeGame`. Loop order otherwise unchanged. |
-| `src/cv/index.ts` | `__cvtest.pursuer` seam getter only. |
-| `e2e/threejs-e2e.mjs` | Section 12 (7 checks, runs only when a pursuer loaded). |
-| `review/phase7/ARTURO_ASSET_CONTRACT.md` | The asset contract the loader enforces/reports. |
+| `src/Game/pursuer.ts` | `Pursuer` (one actor + one mixer per Game): loads once with its own GLTFLoader; skinned-bounds normalisation (pivot at soles, centred, scaled to Finn's measured height on first update); facing auto-detected from the bind pose; material normalised on Arturo's own material (metalness 0, roughness 0.9, specular 1, emissive = base map like Finn); clip sanitising (scale tracks and root-travel position tracks dropped, measured in world units through the 0.01 armature); stride + run-cycle-minimum measured by stepping the mixer once at load; run cadence follows Finn's measured speed (clamped); trail-following with resting heights only; hidden on `ready`, re-attached on `start`, `idle` on `end`; load race handled (run starts before the asset arrives → plays on arrival); `dispose()` frees owned geometry/material/textures, uncaches the mixer, removes the listener. |
+| `src/Game/envart.ts` | `PURSUER` (`?arturo=1|0`, `cv-arturo`, default off), `PURSUER_URL` (`?arturoModel=` test-only). |
+| `src/Game/index.ts` | create when flagged; `pursuer.update(delta, finn, ctl)` right after `player.update` in the existing loop; dispose in `disposeGame`. |
+| `src/cv/index.ts` | `__cvtest.pursuer` getter. |
+| `e2e/threejs-e2e.mjs` | section 12 (7 pursuer checks; runs only when an actor loaded). |
+| `public/assets/glb/arturo.glb`, `arturo_3d_work/` | the asset and its editable source (committed as delivered). |
 
-Untouched: `src/cv/pose.js`, `gestures.js`, `mimic.ts`, `player.ts`, `contorlPlayer.ts`, `environment.ts`, all Phase 2/3/5/6 code and assets, Finn's GLB (sha256 still `aa15c58f…`).
+Untouched: MediaPipe engines/scheduling, gestures/thresholds, calibration, person lock, input mapping, physics, collisions, scoring, Finn's model/rig/clips/mimic, Phase 4 CSS, Phase 5 effects, Phase 6 presets, lighting/exposure.
 
-## Verification (headless, fake camera)
-- Type-check + build clean.
-- e2e with the stand-in pursuer (`?ui=phase4&arturo=1&arturoModel=/assets/glb/player1.glb`): **92/92** (85 existing + 7 pursuer). Covers: single load with run+idle mapped; meshes unpickable and no reserved names; hidden on `ready` with the scene emptied, exactly one group re-attached on `start` (after a New Game → r → countdown restart); behind Finn (+Z, 2–9 units) on the ground with the gap reset; one reaction per committed mistake and no repeat on later frames; mistakes/game status exactly as the game set them; `idle` on Stop with no death caused; `dispose()` leaves no mixer/group/listener.
-- e2e with the pursuer off (`?ui=original&arturo=0`): 85/85. Unit suites unchanged (gestures 68, fx 6, polish 6).
-- Console: 0 errors/exceptions in all runs.
+## Verification (headless Chrome, fake camera, 1440×900)
+- Type-check and build clean.
+- e2e `?ui=phase4&arturo=1` (real asset): **92/92**. e2e `?ui=original&arturo=0`: **85/85**. Unit suites unchanged: gestures 68, effects 6, polish 6. 0 console errors/exceptions.
+- Lifecycle probe: New Game → r → ready (hidden, scene emptied) → 3-2-1 → start: exactly one `pursuer` group, one actor, one mixer, `run` playing, gap reset — repeated 4×; Stop → `idle`, inactive; dispose leaves nothing.
+- Hidden tab: the game loop is rAF-driven, so `Game.update` (and with it the pursuer's mixer and gap logic) stops while hidden; on return `Time` clamps the delta to 50 ms so nothing jumps. No extra handling needed or added.
 
-### Stand-in disclosure
-`player1.glb` (the game's Mixamo animation donor, 8 050 tris, 83 bones, 4 materials, one 4096² texture) was used ONLY to exercise the loader and lifecycle. It is not Arturo, is not shipped as Arturo, and is only reachable through the unpersisted `?arturoModel=` test parameter. Its rig also proved the loader's robustness: without skinned-bounds measurement and track sanitising it rendered 10.9× too large.
+### Cost of Arturo (same conditions: god-mode run through obstacles, actor animated and forced visible, 10 s, two rounds)
+| | draw calls | triangles | textures | geometries | heap MB | rAF p50/p95 ms | pose fps | inference ms |
+|---|---|---|---|---|---|---|---|---|
+| off | 391 / 392 | 252 355 / 252 435 | 6 | 100 | 27 / 25 | 16.7 / 16.7–16.8 | 20.5 / 20.6 | 13.4 / 12.1 |
+| on | 390 / 386 | 264 876 / 264 556 | 8 | 101 | 25 / 28 | 16.7 / 16.7 | 20.6 / 20.5 | 14.8 / 13.0 |
 
-### Cost of one extra skinned actor (stand-in, phase2+phase3+fx, 1440×900, 10 s god-mode run, two rounds)
-| | draw calls | triangles | textures | heap MB | rAF p50/p95 ms | pose fps | inference ms |
-|---|---|---|---|---|---|---|---|
-| arturo off | 231 | 131 921 | 6 | 22 / 20 | 16.7 / 16.8 | 20.7 / 20.4 | 14.4 / 13.4 |
-| arturo on | 239 / 233 | 140 373 / 139 893 | 11 | 29 / 26 | 16.7 / 16.7 | 20.6 / 20.6 | 11.0 / 10.1 |
+Arturo = **+12.5k triangles, +1 geometry, +2 texture objects (one 2048² image), ~1 draw call**. Headless frame pacing is vsync-bound at 60 Hz in both, so it cannot show the GPU cost of a second skinned character; inference deltas are noise (they move both ways). **Real-camera measurement on the booth laptop, both control modes, is still needed.**
 
-Headless frame pacing is vsync-bound and cannot show the GPU cost; the real cost (≈ +8 draws, +8k tris, +5 textures, +5–7 MB) must be measured on the booth laptop with its camera in both control modes. The inference-ms swing is run-to-run noise (it moved the "wrong" way).
+### Memory after restarts (4 cycles New Game → Stop)
+| | geometries | textures | heap MB |
+|---|---|---|---|
+| off | 95 → 100 → 105 → 110 | 6 → 7 → 8 → 9 | 21 → 22 → 22 → 31 |
+| on | 96 → 101 → 106 → 111 | 8 → 9 → 10 → 11 | 21 → 23 → 25 → 30 |
 
-## Camera-fit measurements (stand-in, real camera rig: Finn +17 z / +9 y, look-at +5.8 y, fov 45)
-- Finn: runtime height 5.21, root at y 0.32 (soles). Lanes at x = −5 / 0 / +5, obstacles fill a lane (train 5.6 wide), so a lateral placement outside Finn's trail would clip neighbouring obstacles — hence trail-following + small lateral offset + overlap-hide.
-- Chosen start values: gap 4.5 (Arturo 12.5 from camera → ~1.3× Finn's screen size), lateral 2.0 toward road centre (clears Finn's silhouette at that size; 1.6 overlapped his arm), pressure −1.4 for ~3 s per mistake (floor 3.1), drift +0.12/s to max 7.2. See `shots/pursuer-run-standin.png`. These are starting points for a real camera trial, not final.
+The +5 geometries / +1 texture per restart is identical with Arturo off: a **pre-existing** leak in the restart path (scene children are removed without disposal while the environment rebuilds), not the pursuer. Left as found (protected system); worth a separate fix.
 
-## Blockers / remaining
-1. **Approval of the 46-credit generation** (or an alternative route) — nothing else is blocked on code.
-2. After generation: inspect likeness, hands, hidden surfaces, textures, bounds, skeleton (≤ 40 joints, ≤ 4 influences), both clips looping in place; merge idle into the run GLB; drop `arturo.glb` in `public/assets/glb/`; run the same e2e without `arturoModel`; capture front/back/run next to Finn under the game's lighting; tune gap/lateral on the booth laptop.
-3. Real-device performance with Arturo on/off, both control modes.
-4. `reach`/`catch`/`celebrate` clips and any cinematic remain out of scope.
-
-Preview URL (stand-in, for the placement only): `http://localhost:5180/?env=phase2&phase3=1&fx=1&finnPolish=original&ui=phase4&arturo=1&arturoModel=/assets/glb/player1.glb`
-Once `arturo.glb` exists: `http://localhost:5180/?env=phase2&phase3=1&fx=1&finnPolish=original&ui=phase4&arturo=1`
+## Limitations
+- All numbers are headless. Real webcam fps/latency with Arturo on/off, body and hand modes, and how he reads on the booth screen are Steeve's checks.
+- Cadence cap (1.6) and gap/lateral are first values from the real camera geometry, not a booth trial.
+- Foot slide is reduced, not eliminated (see Speed sync).
+- Arturo is hidden for the stretch where Finn's trail crosses a jumped barrier; he never jumps.
+- `arturo.glb` is 8.3 MB (one buffer; texture ~PNG). Load happens once per page; it is not preloaded before the first run, so on a slow disk the first run may start before he appears (handled: he joins on arrival).
+- 12 523 triangles vs the 12k target: kept as delivered (no decimation, per instruction).

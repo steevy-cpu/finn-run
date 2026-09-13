@@ -1,0 +1,29 @@
+{
+  "status": "proposed_not_submitted",
+  "model_catalog_id": "image_to_3d",
+  "required_action": "generate_3d",
+  "action_available_in_current_connection": false,
+  "input_file": "Arturo_Neutral_Front.png",
+  "estimated_3d_credits": null,
+  "parameters": {
+    "should_texture": true,
+    "enable_rigging": true,
+    "enable_animation": true,
+    "animation_action_id": 16,
+    "target_polycount": 12000,
+    "should_remesh": true,
+    "topology": "triangle",
+    "symmetry_mode": "auto",
+    "enable_pbr": false,
+    "pose_mode": "a-pose",
+    "rigging_height_meters": 1.86,
+    "texture_prompt": "Preserve Arturo's warm brown skin, short black curls, facial hair, small hoop earrings, black sports jersey with ivory collar and hem, narrow cyan accents, charcoal joggers and black shoes with ivory soles. Simple opaque game materials; no baked directional shadows or new text."
+  },
+  "notes": [
+    "Revalidate model availability, parameter schema and exact cost in the interface actually used before submitting.",
+    "Catalog example identifies action 16 as RunFast and 0 as idle; confirm current actions. One requested action does not guarantee both clips.",
+    "Inspect run for root motion, looping and foot contact. Do not assume an in-place result.",
+    "Add idle to the same validated rig using a supported animation workflow; do not regenerate the whole character merely to get another clip.",
+    "Normalize facing and pivot during asset preparation if needed and record changes. Never change Finn's rig to accommodate Arturo."
+  ]
+}

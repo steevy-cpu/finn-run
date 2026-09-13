@@ -36,11 +36,14 @@ export type PursuerOptions = {
     drift?: number;
     /** How fast (1/s) the actual gap chases its target. */
     follow?: number;
-    /** Authored facing: 'z+' (contract) or 'z-' if the asset already faces the track. */
-    facing?: 'z+' | 'z-';
+    /** Upper clamp for the run clip's timeScale (cadence cap). */
+    maxCadence?: number;
+    /** Authored facing: 'auto' reads it from the bind pose (head→face);
+     *  'z+' / 'z-' force it. The run direction is -Z. */
+    facing?: 'auto' | 'z+' | 'z-';
 };
 
-type Trail = {x: number; y: number; z: number};
+type Trail = {x: number; y: number; z: number}; // y = Finn's last RESTING root height
 
 export class Pursuer {
     readonly group = new THREE.Group();
@@ -60,6 +63,9 @@ export class Pursuer {
     private lastMistakes = 0;
     reactions = 0;       // committed mistake increases reacted to (for tests)
     private trail: Trail[] = [];
+    private lastZ: number | null = null;
+    speed = 0;
+    runTimeScaleWanted = 0;
     private static readonly TRAIL_MAX = 240;
     private root: THREE.Object3D | null = null;
     private owned: {geometries: Set<THREE.BufferGeometry>; materials: Set<THREE.Material>; textures: Set<THREE.Texture>} =
@@ -70,7 +76,7 @@ export class Pursuer {
 
     constructor(private game: Game, options: PursuerOptions) {
         this.opts = {
-            height: 5.3, gap: 4.5, lateral: 2.0, pressure: 1.4, drift: 0.12, follow: 2.5, facing: 'z+',
+            height: 5.3, gap: 4.5, lateral: 2.0, pressure: 1.4, drift: 0.12, follow: 2.5, facing: 'auto', maxCadence: 1.6,
             ...options,
         };
         this.group.name = 'pursuer';
@@ -90,6 +96,7 @@ export class Pursuer {
             const gltf = await new GLTFLoader().loadAsync(this.opts.url);
             this.adopt(gltf.scene, gltf.animations || []);
             this.state = 'ready';
+            if (this.active) { this.attach(); this.play('run'); } // run started before the asset arrived
         } catch (err: any) {
             this.state = 'failed';
             this.error = err?.message || String(err);
@@ -124,9 +131,36 @@ export class Pursuer {
                 }
             }
         });
+        // Material: the file omits metallicFactor (glTF default 1 → a black,
+        // mirror-like diffuse under our lights) and carries a 0.41 roughness
+        // + KHR specular. Finn is matte (roughness 0.9, metalness 0) and
+        // self-lit (emissiveMap = base map). Arturo's own material gets the
+        // same treatment so both read alike under the unchanged lighting.
+        for (const m of materials as Set<any>) {
+            m.metalness = 0;
+            m.roughness = 0.9;
+            if (m.specularColor) m.specularColor.set(0xffffff);
+            if ('specularIntensity' in m) m.specularIntensity = 0.2;
+            if (m.map && !m.emissiveMap) { m.emissiveMap = m.map; m.emissive.set(0xffffff); }
+            m.needsUpdate = true;
+        }
         // Embedded cameras/lights would change the scene: drop them.
         for (const o of [...scene.children]) if ((o as any).isCamera || (o as any).isLight) scene.remove(o);
 
+        // Facing from the bind pose: head→face and foot→toe both point the
+        // way the character looks. Positive = authored facing +Z. (The
+        // delivery note said +Z; the file actually faces -Z — measure it.)
+        const dirZ = (a: string, b: string) => {
+            const A = scene.getObjectByName(a), B = scene.getObjectByName(b);
+            if (!A || !B) return null;
+            const pa = A.getWorldPosition(new THREE.Vector3()), pb = B.getWorldPosition(new THREE.Vector3());
+            return +(pb.z - pa.z).toFixed(4);
+        };
+        scene.updateMatrixWorld(true);
+        const facing = {headToFace: dirZ('Head', 'headfront'), footToToe: dirZ('LeftFoot', 'LeftToeBase')};
+        const authoredPlusZ = this.opts.facing === 'auto'
+            ? ((facing.headToFace ?? facing.footToToe ?? 1) > 0)
+            : this.opts.facing === 'z+';
         // Normalise: soles at y=0, centred on x/z, scaled to the target height,
         // facing the running direction (-Z) like Finn.
         // Bounds from the SKINNED bind pose: Box3.setFromObject ignores skinning,
@@ -148,7 +182,7 @@ export class Pursuer {
         scene.position.set(-(box.min.x + size.x / 2), -box.min.y, -(box.min.z + size.z / 2));
         pivot.add(scene);
         pivot.scale.setScalar(scale);
-        if (this.opts.facing === 'z+') pivot.rotation.y = Math.PI;
+        if (authoredPlusZ) pivot.rotation.y = Math.PI; // turn to face -Z
         this.root = pivot;
         this.group.add(pivot);
 
@@ -158,9 +192,14 @@ export class Pursuer {
         // is a large fraction of the model's height is root motion (or a unit
         // mismatch between clip and mesh) — strip those so the actor stays on
         // its pivot; small hip bobs survive.
+        const worldScaleOf = (nodeName: string) => {
+            const n = scene.getObjectByName(nodeName);
+            return n ? n.getWorldScale(new THREE.Vector3()).x : 1;
+        };
+        const travel: Record<string, number> = {};
         animations = animations.map(clip => {
             const keep = clip.tracks.filter(t => {
-                const prop = t.name.split('.').pop();
+                const [node, prop] = [t.name.slice(0, t.name.lastIndexOf('.')), t.name.split('.').pop()];
                 if (prop === 'scale') return false;
                 if (prop !== 'position') return true;
                 let range = 0;
@@ -169,7 +208,11 @@ export class Pursuer {
                     for (let k = i; k < t.values.length; k += 3) { lo = Math.min(lo, t.values[k]); hi = Math.max(hi, t.values[k]); }
                     range = Math.max(range, hi - lo);
                 }
-                return range < 0.25 * size.y;
+                // Track values are in the bone's local units (cm under a 0.01
+                // armature); compare in world units against the model height.
+                const world = range * worldScaleOf(node);
+                travel[`${clip.name}:${node}`] = +world.toFixed(4);
+                return world < 0.25 * size.y;
             });
             const c = new THREE.AnimationClip(clip.name, clip.duration, keep);
             (c as any).droppedTracks = clip.tracks.length - keep.length;
@@ -198,7 +241,78 @@ export class Pursuer {
             mapped: {run: run?.name ?? null, idle: idle?.name ?? null},
             embedded: {cameras, lights},
             names,
+            facing: {...facing, authoredPlusZ, rotatedY: authoredPlusZ ? Math.PI : 0},
+            rootTravelWorld: travel,
+            materialAudit: [...materials].map((m: any) => ({
+                type: m.type, side: m.side, roughness: m.roughness, metalness: m.metalness,
+                emissiveIntensity: m.emissiveIntensity, hasEmissiveMap: !!m.emissiveMap,
+                specularColor: m.specularColor ? m.specularColor.getHexString() : null, ior: m.ior ?? null,
+                transparent: m.transparent,
+            })),
+            fittedToFinn: null,
+            stride: null,
         };
+        this.measureStride(animations);
+    }
+
+    /** Foot travel per run cycle (world units at the current pivot scale):
+     *  step the mixer through the clip once and take the toe's z range
+     *  relative to the hips. Used to sync the cycle rate to the real speed. */
+    private stride = 0;
+    private runDuration = 0;
+    private measureStride(animations: THREE.AnimationClip[]) {
+        const run = animations.find(c => this.clips.run && c.name === (this.clips.run.getClip().name));
+        if (!run || !this.mixer || !this.root) return;
+        const toe = this.root.getObjectByName('LeftToeBase') || this.root.getObjectByName('LeftFoot');
+        const hips = this.root.getObjectByName('Hips');
+        if (!toe || !hips) return;
+        const action = this.clips.run;
+        action.reset().play();
+        const N = 24, tp = new THREE.Vector3(), hp = new THREE.Vector3(), mb = new THREE.Box3();
+        let lo = Infinity, hi = -Infinity, minY = Infinity;
+        const skinned: any[] = []; this.root.traverse((o: any) => { if (o.isSkinnedMesh) skinned.push(o); });
+        for (let i = 0; i <= N; i++) {
+            this.mixer.setTime(run.duration * i / N);
+            this.root.updateMatrixWorld(true);
+            toe.getWorldPosition(tp); hips.getWorldPosition(hp);
+            const rel = tp.z - hp.z;
+            lo = Math.min(lo, rel); hi = Math.max(hi, rel);
+            for (const m of skinned) { m.computeBoundingBox(); mb.copy(m.boundingBox).applyMatrix4(m.matrixWorld); minY = Math.min(minY, mb.min.y); }
+        }
+        action.stop();
+        this.mixer.setTime(0);
+        const scale = this.root.scale.x;
+        this.stride = (hi - lo) / scale; // per unit of pivot scale
+        this.runDuration = run.duration;
+        // Lowest point of the run cycle → track level (pivot-local units).
+        const inner = this.root.children[0];
+        if (inner && isFinite(minY)) inner.position.y -= minY / scale;
+        if (this.report) this.report.stride = {perCycleAtScale1: +this.stride.toFixed(4), cycle: run.duration, runCycleMinYAtScale1: +(minY / scale).toFixed(4)};
+    }
+
+    /** Scale Arturo to Finn's ACTUAL runtime height (skinned world bounds),
+     *  measured once when both actors exist. */
+    private fitted = false;
+    private restRootY = 0;
+    private restY = 0;
+    private fitToFinn(finn: THREE.Object3D) {
+        if (this.fitted || !this.root || !this.report) return;
+        finn.updateMatrixWorld(true);
+        const box = new THREE.Box3(), mb = new THREE.Box3();
+        finn.traverse((o: any) => {
+            if (!o.isMesh) return;
+            if (o.isSkinnedMesh) { o.computeBoundingBox(); mb.copy(o.boundingBox); } else { o.geometry.computeBoundingBox(); mb.copy(o.geometry.boundingBox); }
+            mb.applyMatrix4(o.matrixWorld); box.union(mb);
+        });
+        const finnHeight = box.max.y - box.min.y;
+        if (!(finnHeight > 1)) return; // Finn not measurable yet
+        const scale = finnHeight / this.report.bounds.y;
+        this.root.scale.setScalar(scale);
+        this.fitted = true;
+        // Finn's root rests this far above the rail surface (his soles are
+        // modelled below the root); Arturo's soles go on the surface itself.
+        this.restRootY = finn.position.y;
+        this.report.fittedToFinn = {finnHeight: +finnHeight.toFixed(3), finnRootY: +finn.position.y.toFixed(3), finnSoleY: +box.min.y.toFixed(3), arturoScale: +scale.toFixed(4), arturoHeight: +finnHeight.toFixed(3)};
     }
 
     // ---------- game state (observed, never decided) ----------
@@ -207,6 +321,8 @@ export class Pursuer {
             this.active = true;
             this.attach();
             this.trail.length = 0;
+            this.lastZ = null;
+            this.restY = this.restRootY;
             this.gap = this.gapTarget = this.opts.gap;
             this.pressureLeft = 0;
             this.lastMistakes = 0;
@@ -247,6 +363,22 @@ export class Pursuer {
         }
         if (!ctl?.gameStart) return; // paused / pre-game: freeze
         this.attach();
+        this.fitToFinn(finn);
+        // Forward speed from Finn's own motion (units/s, smoothed); the run
+        // cycle rate follows it so the feet plant instead of sliding.
+        if (this.lastZ !== null && delta > 0) {
+            const v = (this.lastZ - finn.position.z) / delta;
+            this.speed += (v - this.speed) * Math.min(1, 4 * delta);
+        }
+        this.lastZ = finn.position.z;
+        if (this.clips.run && this.stride > 0 && this.root) {
+            const strideWorld = this.stride * this.root.scale.x;
+            const wanted = (this.speed / strideWorld) * this.runDuration; // cycles/s × s
+            // Physically exact would be ~2.6 at full speed (a 5 cycle/s blur);
+            // capped so he reads as sprinting beside Finn's 1.14 cycle/s.
+            this.runTimeScaleWanted = wanted;
+            this.clips.run.timeScale = THREE.MathUtils.clamp(wanted, 0.6, this.opts.maxCadence);
+        }
 
         // Committed mistakes: react once per increase (not per collision callback).
         const mistakes = ctl.smallMistake ?? 0;
@@ -265,10 +397,14 @@ export class Pursuer {
         const k = 1 - Math.exp(-this.opts.follow * delta);
         this.gap += (this.gapTarget - this.gap) * k;
 
-        // Record Finn's trail (only while he moves forward).
+        // Record Finn's trail (only while he moves forward). Height is his
+        // last RESTING height (ground or a train roof) — no jump arcs: the
+        // pursuer has no jump mechanic, he runs on the surface Finn ran on.
+        const airborne = ctl.isJumping || !ctl.downCollide || ctl.fallingSpeed > 0;
+        if (!airborne) this.restY = finn.position.y;
         const last = this.trail[this.trail.length - 1];
         if (!last || finn.position.z < last.z - 0.05) {
-            this.trail.push({x: finn.position.x, y: finn.position.y, z: finn.position.z});
+            this.trail.push({x: finn.position.x, y: this.restY, z: finn.position.z});
             if (this.trail.length > Pursuer.TRAIL_MAX) this.trail.shift();
         }
         // Sample the trail at z = finn.z + gap (behind), interpolating.
@@ -287,7 +423,7 @@ export class Pursuer {
         const side = sx > 0.5 ? -1 : 1;
         const lateral = this.opts.lateral * side;
         const x = THREE.MathUtils.clamp(sx + lateral, -roadWidth / 2 + 1, roadWidth / 2 - 1);
-        const y = Math.max(0, sy); // never below the road; never airborne
+        const y = Math.max(0, sy - this.restRootY); // soles on the rail surface, never below
         this.group.position.set(x, y, zWant);
 
         // Overlap with a passed obstacle → hide for that stretch (presentation only).
