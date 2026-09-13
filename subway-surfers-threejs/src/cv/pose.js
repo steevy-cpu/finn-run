@@ -117,7 +117,6 @@ export class PoseEngine {
             const roi = this.track.locked ? this.track.roi : null;
             const source = this._prepareSource(roi);
             const result = this.landmarker.detectForVideo(source, t);
-            this.inferMs = performance.now() - t;
             this._trackFps(t);
             // Map crop-relative landmarks back to full-frame coordinates.
             const poses = (result.landmarks || []).map(lm => roi
@@ -129,6 +128,7 @@ export class PoseEngine {
             if (this.anchor === 'hands') {
                 landmarks = this._detectHands(source, roi, t, landmarks);
             }
+            this.inferMs = performance.now() - t; // pose (+ hands in seated mode)
             if (landmarks) {
                 this.track.lost = 0;
                 this._updateRoi(landmarks);
