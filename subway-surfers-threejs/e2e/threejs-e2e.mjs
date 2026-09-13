@@ -76,6 +76,21 @@ const pre = await evalJs(`JSON.stringify((() => {
     };
 })())`).then(JSON.parse);
 check("run NOT started before calibration", !pre.started);
+// Stop is always available (admin): pre-game it just reveals the Top 3.
+const stopIdle = await evalJs(`(() => {
+    const T = window.__cvtest;
+    T.board.save([{name: 'Nadia', score: 1000, coins: 3, at: 1}]);
+    const visible = getComputedStyle(document.getElementById('cv-stop')).display !== 'none';
+    document.getElementById('cv-stop').click();
+    const shown = document.getElementById('cv-board').hidden === false
+        && document.querySelectorAll('#cv-board-list li').length === 1;
+    const notStarted = T.control().gameStart !== true;
+    document.getElementById('cv-board-close').click();
+    localStorage.removeItem('cv-leaderboard');
+    return JSON.stringify({visible, shown, notStarted});
+})()`).then(JSON.parse);
+check("Stop button visible before any run", stopIdle.visible);
+check("Stop outside a run reveals the Top 3 without starting", stopIdle.shown && stopIdle.notStarted);
 check("English guide text shown", pre.guide);
 // Remember the bind-pose spine rotation for the respawn check later.
 await evalJs(`window.__bindSpine = window.__cvtest.control().model.getObjectByName('mixamorigSpine').quaternion.toArray(); 'ok'`);

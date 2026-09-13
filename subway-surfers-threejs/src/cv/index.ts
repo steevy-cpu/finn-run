@@ -63,7 +63,7 @@ style.textContent = `
 }
 .cv-btn:disabled { background: #333; color: #777; }
 .cv-btn-secondary { background: #2a2f36; }
-#cv-stop { background: #ff5252; display: none; }
+#cv-stop { background: #ff5252; }
 #cv-guide {
     position: absolute; left: 50%; top: 48px; transform: translateX(-50%);
     z-index: 6; display: none; align-items: center; gap: 12px;
@@ -146,7 +146,7 @@ panel.innerHTML = `
     <div id="cv-guide"></div>
     <div id="cv-bar">
         <button id="cv-newgame" class="cv-btn" disabled>New Game</button>
-        <button id="cv-stop" class="cv-btn">Stop</button>
+        <button id="cv-stop" class="cv-btn" title="End the run and reveal the Top 3">Stop</button>
         <button id="cv-calibrate" class="cv-btn cv-btn-secondary" disabled>Calibrate</button>
         <div id="cv-status">Loading…</div>
         <div id="cv-key"></div>
@@ -472,14 +472,12 @@ game.on('gameStatus', (status: string) => {
         lastData = {score: 0, coin: 0};
         cancelCountdown();
         hideBoard();
-        ($('cv-stop') as HTMLButtonElement).style.display = 'block';
         themeAudio.currentTime = 0;
         themeAudio.play().catch(() => {});
         setStatus(`GO ${playerName || ''}! Step • jump • squat`);
     } else if (status === 'end') {
         gameEnded = true;
         themeAudio.pause();
-        ($('cv-stop') as HTMLButtonElement).style.display = 'none';
         const name = playerName || 'Player';
         const result = recordRun(name, lastData.score, lastData.coin);
         if (stoppedByUser) {
@@ -517,9 +515,19 @@ $('cv-name-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') submitName();
     if (e.key === 'Escape') closeNamePrompt();
 });
+// Stop (admin button, always visible): end a live run and reveal the Top 3;
+// outside a run it simply reveals the Top 3.
 $('cv-stop').addEventListener('click', () => {
-    stoppedByUser = true;
-    controlPlayer()?.endRun();
+    if (gameStarted && !gameEnded) {
+        stoppedByUser = true;
+        controlPlayer()?.endRun(); // 'end' handler shows the board + confetti
+    } else {
+        cancelCountdown();
+        pendingGame = false;
+        showBoard();
+        launchConfetti();
+        setStatus('Top 3 — press New Game to play');
+    }
 });
 
 // ---------- Pose engine ----------
