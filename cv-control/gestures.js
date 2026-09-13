@@ -311,7 +311,7 @@ export const HANDS_DEFAULTS = applyBand({
     ...DEFAULTS,
     laneEnter: 0.30,      // hand reach (shoulder widths) to enter a lane — a short reach
     laneExit: 0.20,
-    adaptRate: 0.05,
+    adaptRate: 0.08,      // box follows the resting hands (~0.4s), like standing mode
 }, 0.52, 0.25);           // jump at +0.13, squat at -0.39 shoulder widths
 
 // Size unit: shoulder width when the pose model sees the shoulders; with the
@@ -404,15 +404,21 @@ export class HandsInterpreter {
         this.debug.offsetY = offsetY;
         this.debug.offsetX = dR >= dL ? dR : -dL;
 
-        // Slow re-centering while the hands rest near their calibrated spot.
+        // The box tracks the resting hands (same idea as the standing box):
+        // each dimension follows on its own whenever it is NOT mid-gesture,
+        // so the lines glide with the player as they settle or drift, while a
+        // jump/squat/reach still crosses them.
         const k = o.adaptRate;
-        const restX = Math.abs(dR) < o.laneExit * 0.5 && Math.abs(dL) < o.laneExit * 0.5;
-        if (Math.abs(offsetY) < o.jumpFire * 0.5 && restX && this.zone === 0) {
+        const restR = Math.abs(dR) < o.laneExit * 0.5;
+        const restL = Math.abs(dL) < o.laneExit * 0.5;
+        if (Math.abs(offsetY) < o.jumpFire * 0.5) {
             c.hipY += (core.cy - c.hipY) * k;
-            c.hipX += (core.cx - c.hipX) * k;
-            c.lx += (core.lx - c.lx) * k;
-            c.rx += (core.rx - c.rx) * k;
             c.torso += (core.scale - c.torso) * k;
+        }
+        if (this.zone === 0) {
+            if (restR) c.rx += (core.rx - c.rx) * k;
+            if (restL) c.lx += (core.lx - c.lx) * k;
+            if (restR && restL) c.hipX += (core.cx - c.hipX) * k;
         }
 
         // --- Lanes: one hand reaching out, with hysteresis ---

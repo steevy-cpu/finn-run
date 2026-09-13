@@ -378,5 +378,35 @@ function freshHands() {
     check("hands: jump works on the hand-tracker path", evs.length === 1 && evs[0].type === "jump");
 }
 
+console.log("hands: box tracks the resting hands");
+{
+    // Both hands settle 0.015 raw lower-right of where they were calibrated
+    // (0.075 widths sideways, 0.075 up — inside the gates): the box follows.
+    const { g, t } = freshHands();
+    let tt = t;
+    // (0.075 widths sideways, 0.05 widths up — both inside the gates)
+    for (let i = 0; i < 300; i++) g.update(hands(0.485, 0.59), (tt += 33));
+    check("hands: lines follow a slow drift", Math.abs(g.calib.hipX - 0.485) < 0.004
+        && Math.abs(g.calib.hipY - 0.59) < 0.004 && Math.abs(g.calib.rx - 0.335) < 0.004 && Math.abs(g.calib.lx - 0.635) < 0.004);
+}
+{
+    // A hand held OUT (lane) must not drag its line along; the other hand's
+    // rest still follows its own small drift.
+    const { g, t } = freshHands();
+    let tt = t;
+    const rx0 = g.calib.rx;
+    for (let i = 0; i < 300; i++) g.update(hands(0.5, 0.6, { rx: 0.20, lx: 0.66 }), (tt += 33));
+    check("hands: held reach keeps its line (lane stays)", g.lane === 2 && Math.abs(g.calib.rx - rx0) < 1e-6);
+    // (one frame of adaptation happens before the zone flips — negligible)
+    check("hands: other hand's rest untouched while in a lane", Math.abs(g.calib.lx - 0.65) < 0.002);
+}
+{
+    // Hands held high (jump zone) never pull the JUMP line up.
+    const { g, t } = freshHands();
+    let tt = t;
+    for (let i = 0; i < 300; i++) g.update(hands(0.5, 0.6, { ly: 0.53, ry: 0.53 }), (tt += 33));
+    check("hands: held-up hands don't move the box", Math.abs(g.calib.hipY - 0.6) < 1e-6);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
