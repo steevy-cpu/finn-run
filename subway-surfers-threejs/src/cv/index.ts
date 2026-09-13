@@ -555,6 +555,7 @@ function setMode(m: Mode) {
     interpreter = m === 'hands' ? new HandsInterpreter() : new GestureInterpreter();
     interpreter.opts.aspect = aspect;
     applyTuning(loadTuning());
+    refreshSliders();
     mimic.armsOnly = m === 'hands';
     engine.anchor = m;
     layoutStage();
@@ -711,6 +712,7 @@ document.addEventListener('fullscreenchange', () => {
 // v4: bumped when the default thresholds change so stale saved tuning
 // (based on the old, wider box) doesn't override the tighter defaults.
 const TUNING_KEY = 'cv-tuning-v4';
+const tuningKey = () => `${TUNING_KEY}-${mode}`; // sliders are per mode
 const SLIDERS: Array<{id: string; opt: string}> = [
     {id: 'cv-lane', opt: 'laneEnter'},
     {id: 'cv-band', opt: 'vertBand'},
@@ -726,11 +728,17 @@ function applyTuning(opts: Record<string, number>) {
 
 function loadTuning(): Record<string, number> {
     try {
-        const saved = JSON.parse(localStorage.getItem(TUNING_KEY) || '{}');
+        const saved = JSON.parse(localStorage.getItem(tuningKey()) || '{}');
         return typeof saved === 'object' && saved ? saved : {};
     } catch { return {}; }
 }
 
+function refreshSliders() {
+    for (const {id, opt} of SLIDERS) {
+        ($(id) as HTMLInputElement).value = String(interpreter.opts[opt]);
+        $(id + '-val').textContent = Number(interpreter.opts[opt]).toFixed(2);
+    }
+}
 applyTuning(loadTuning());
 for (const {id, opt} of SLIDERS) {
     const input = $(id) as HTMLInputElement;
@@ -742,7 +750,7 @@ for (const {id, opt} of SLIDERS) {
         tuning[opt] = Number(input.value);
         applyTuning(tuning);
         valEl.textContent = Number(input.value).toFixed(2);
-        try { localStorage.setItem(TUNING_KEY, JSON.stringify(tuning)); } catch {}
+        try { localStorage.setItem(tuningKey(), JSON.stringify(tuning)); } catch {}
     });
 }
 

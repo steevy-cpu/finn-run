@@ -309,10 +309,10 @@ export class GestureInterpreter {
 // SHOULDER WIDTHS (seated players' hips may be hidden), so bigger defaults.
 export const HANDS_DEFAULTS = applyBand({
     ...DEFAULTS,
-    laneEnter: 0.55,      // hand reach (shoulder widths) to enter a lane
-    laneExit: 0.36,
+    laneEnter: 0.30,      // hand reach (shoulder widths) to enter a lane — a short reach
+    laneExit: 0.20,
     adaptRate: 0.05,
-}, 0.60, 0.25);           // jump at +0.15, squat at -0.45 shoulder widths
+}, 0.52, 0.25);           // jump at +0.13, squat at -0.39 shoulder widths
 
 // Size unit: shoulder width when the pose model sees the shoulders; with the
 // hand tracker (landmarks.palm = mean palm length, wrist→middle knuckle) the
