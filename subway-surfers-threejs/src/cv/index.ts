@@ -931,6 +931,8 @@ async function captureFace(name: string) {
     roadLength,
     board: {load: loadBoard, save: saveBoard, record: recordRun},
     get fx() { return game.fx; },
+    get finnPolish() { return (Player as any).instance?.polish ?? null; },
+    get finnAudit() { return (Player as any).instance?.audit ?? null; },
     setMode,
     get mode() { return mode; },
     newGame(name: string) {

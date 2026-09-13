@@ -18,6 +18,24 @@ function detect(): 'legacy' | 'phase2' {
 }
 
 export const ENV_ART = detect();
+// Phase 6 Finn material experiment: ?finnPolish=original|soft|shaped
+// (persisted); anything else falls back to original here, at the URL layer.
+export type FinnPolishMode = 'original' | 'soft' | 'shaped';
+export const FINN_POLISH: FinnPolishMode = (() => {
+    const valid = (v: string | null): v is FinnPolishMode => v === 'original' || v === 'soft' || v === 'shaped';
+    try {
+        const q = new URLSearchParams(location.search).get('finnPolish');
+        if (q !== null) {
+            const m = valid(q) ? q : 'original';
+            localStorage.setItem('cv-finn-polish', m);
+            return m;
+        }
+        const saved = localStorage.getItem('cv-finn-polish');
+        if (valid(saved)) return saved;
+    } catch {}
+    return 'original';
+})();
+
 export const CROSSINGS = (() => {
     try { return new URLSearchParams(location.search).get('crossings') === '1'; } catch { return false; }
 })();

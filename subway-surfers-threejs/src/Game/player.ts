@@ -5,6 +5,9 @@ import {playerStatus} from './const';
 import {ControlPlayer} from './contorlPlayer';
 
 import {EventEmitter} from 'events';
+import {FINN_POLISH} from './envart';
+// @ts-ignore — plain JS module (Phase 6 material experiment)
+import {auditFinn, createFinnPolish} from './FinnPolish.mjs';
 
 const PLAYER_MODEL = '/assets/glb/finn.glb';
 const ANIM_DONOR = '/assets/glb/player1.glb';
@@ -52,6 +55,11 @@ export default class Player extends EventEmitter {
     collision!: boolean;
     boxHelper!: THREE.BoxHelper;
     boundingBoxMesh: THREE.Mesh = new THREE.Mesh();
+    // Phase 6: reversible material-only polish controller for the cached
+    // Finn root. Disposed before every legacy material pass (respawn) so that
+    // pass writes the ORIGINAL materials, then re-created and applied once.
+    polish: any = null;
+    audit: any = null;
 
 
     constructor() {
@@ -71,6 +79,10 @@ export default class Player extends EventEmitter {
     async createPlayer(first: boolean = true) {
         const {scene: playerScene, animations = []} = await load3DModel(PLAYER_MODEL);
         // Native clips (baked into the model) win; borrow whatever is missing.
+        // Restore original material bindings before the legacy pass below
+        // rewrites emissive/metalness (cached model: same object on respawn).
+        this.polish?.dispose();
+        this.polish = null;
         const nativeNames = new Set(animations.map(c => c.name));
         let clips: THREE.AnimationClip[] = [...animations];
         const missing = REQUIRED_CLIPS.filter(n => !nativeNames.has(n));
@@ -92,6 +104,16 @@ export default class Player extends EventEmitter {
                 child.skeleton.pose();
             }
         });
+        // Runtime audit (after the legacy material setup, before polish).
+        this.audit = auditFinn(playerScene, animations);
+        if (import.meta.env.DEV && first) console.log('[finn audit]', JSON.stringify(this.audit, null, 2));
+        try {
+            this.polish = createFinnPolish(playerScene);
+            this.polish.setMode(FINN_POLISH);
+        } catch (err) {
+            console.warn('[finn polish] not applied:', (err as Error).message);
+            this.polish = null;
+        }
         playerScene.position.set(0, 20, 5);
         first && playerScene.rotateY(Math.PI);
         playerScene.scale.set(2.8, 2.8, 2.8);

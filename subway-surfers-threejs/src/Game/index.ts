@@ -108,6 +108,7 @@ export default class Game extends EventEmitter {
         cache?.clearCacheData();
         this.removelistener();
         this.fx?.dispose();
+        this.player?.polish?.dispose();
         disposeNode(this.scene);
         this.scene.clear();
         this.renderer.dispose();
