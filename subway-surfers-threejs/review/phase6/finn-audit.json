@@ -1,0 +1,121 @@
+{
+  "source": "Loaded runtime object; inspect after the existing player material setup",
+  "meshes": [
+    {
+      "name": "Finn_Mesh",
+      "skinned": true,
+      "vertices": 8060,
+      "geometryGroups": 0,
+      "materialSlots": 1
+    }
+  ],
+  "materials": [
+    {
+      "name": "tripo_material_770a6849-57a4-48ef-a678-b234d808b33f",
+      "type": "MeshStandardMaterial",
+      "color": "ffffff",
+      "emissive": "ffffff",
+      "emissiveIntensity": 1,
+      "roughness": 0.8999999761581421,
+      "metalness": 0,
+      "textureSlots": {
+        "map": {
+          "name": "Color_770a6849-57a4-48ef-a678-b234d808b33f",
+          "width": 4096,
+          "height": 4096,
+          "colorSpace": "srgb"
+        },
+        "emissiveMap": {
+          "name": "Color_770a6849-57a4-48ef-a678-b234d808b33f",
+          "width": 4096,
+          "height": 4096,
+          "colorSpace": "srgb"
+        }
+      },
+      "baseMapAlsoUsedAsEmissive": true
+    }
+  ],
+  "uniqueMaterials": 1,
+  "skeletons": [
+    {
+      "bones": [
+        "Armature_Root",
+        "mixamorigHips",
+        "mixamorigSpine",
+        "mixamorigSpine1",
+        "mixamorigNeck",
+        "mixamorigHead",
+        "mixamorigHeadTop_End",
+        "mixamorigLeftShoulder",
+        "mixamorigLeftArm",
+        "mixamorigLeftForeArm",
+        "mixamorigLeftHand",
+        "mixamorigRightShoulder",
+        "mixamorigRightArm",
+        "mixamorigRightForeArm",
+        "mixamorigRightHand",
+        "mixamorigLeftUpLeg",
+        "mixamorigLeftLeg",
+        "mixamorigLeftFoot",
+        "mixamorigLeftToeBase",
+        "mixamorigRightUpLeg",
+        "mixamorigRightLeg",
+        "mixamorigRightFoot",
+        "mixamorigRightToeBase"
+      ],
+      "boneCount": 23
+    }
+  ],
+  "clips": [
+    {
+      "name": "dance",
+      "duration": 2.0416667461395264,
+      "tracks": 69
+    },
+    {
+      "name": "die",
+      "duration": 1.8333333730697632,
+      "tracks": 69
+    },
+    {
+      "name": "fall",
+      "duration": 0.8333333134651184,
+      "tracks": 69
+    },
+    {
+      "name": "idle",
+      "duration": 3,
+      "tracks": 69
+    },
+    {
+      "name": "jump",
+      "duration": 0.9166666865348816,
+      "tracks": 69
+    },
+    {
+      "name": "lookback",
+      "duration": 1,
+      "tracks": 69
+    },
+    {
+      "name": "roll",
+      "duration": 0.7083333134651184,
+      "tracks": 69
+    },
+    {
+      "name": "run",
+      "duration": 0.875,
+      "tracks": 69
+    },
+    {
+      "name": "runlookback",
+      "duration": 1.0833333730697632,
+      "tracks": 69
+    }
+  ],
+  "missingExpectedClips": [],
+  "notes": [
+    "This audit does not validate bind pose, weight quality, topology, animation playback or MediaPipe behavior.",
+    "One textured material cannot receive independent skin/cloth/shoe settings without an authored region map or a mesh/material change."
+  ]
+}

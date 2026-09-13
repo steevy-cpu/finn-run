@@ -1,0 +1,46 @@
+{
+  "identity": {
+    "restoredSame": true,
+    "softIsClone": true,
+    "shapedReusesClone": true,
+    "ownedMaterialCount": 1,
+    "original": {
+      "emissiveIntensity": 1,
+      "roughness": 0.8999999761581421,
+      "metalness": 0
+    },
+    "soft": {
+      "emissiveIntensity": 0.35,
+      "roughness": 0.8,
+      "metalness": 0
+    },
+    "shaped": {
+      "emissiveIntensity": 0.18,
+      "roughness": 0.72,
+      "metalness": 0
+    }
+  },
+  "renderer": {
+    "original": {
+      "calls": 715,
+      "triangles": 468518,
+      "geometries": 122,
+      "textures": 22,
+      "programs": 17
+    },
+    "soft": {
+      "calls": 715,
+      "triangles": 468518,
+      "geometries": 122,
+      "textures": 22,
+      "programs": 17
+    },
+    "shaped": {
+      "calls": 715,
+      "triangles": 468518,
+      "geometries": 122,
+      "textures": 22,
+      "programs": 17
+    }
+  }
+}
