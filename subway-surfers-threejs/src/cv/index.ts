@@ -203,18 +203,27 @@ document.body.appendChild(gameOverlays);
 
 const $ = (id: string) => document.getElementById(id)!;
 
-// Size #cv-fit to COVER the stage (fill it completely, cropping the sides
-// or top/bottom evenly) while keeping the camera's aspect ratio, so the
+// Control mode: 'pose' (standing, hips) or 'hands' (seated / wheelchair:
+// both hands are the centroid). Remembered across sessions.
+type Mode = 'pose' | 'hands';
+const MODE_KEY = 'cv-mode';
+let mode: Mode = 'pose';
+try { if (localStorage.getItem(MODE_KEY) === 'hands') mode = 'hands'; } catch {}
+
+// Size #cv-fit to the stage while keeping the camera's aspect ratio, so the
 // skeleton overlay stays pixel-aligned with the video.
 function layoutStage() {
     const stage = $('cv-stage');
-    const fit = $('cv-fit');
+    const fitEl = $('cv-fit');
     const videoEl = $('cv-video') as HTMLVideoElement;
     const vw = videoEl.videoWidth || 1280;
     const vh = videoEl.videoHeight || 720;
-    const scale = Math.max(stage.clientWidth / vw, stage.clientHeight / vh);
-    fit.style.width = `${Math.ceil(vw * scale)}px`;
-    fit.style.height = `${Math.ceil(vh * scale)}px`;
+    // Standing: fill the pane (sides cropped). Seated: show the WHOLE frame
+    // (letterboxed) — the hand STEP lines sit out wide and must stay visible.
+    const fit = mode === 'hands' ? Math.min : Math.max;
+    const scale = fit(stage.clientWidth / vw, stage.clientHeight / vh);
+    fitEl.style.width = `${Math.ceil(vw * scale)}px`;
+    fitEl.style.height = `${Math.ceil(vh * scale)}px`;
 }
 window.addEventListener('resize', layoutStage);
 $('cv-video').addEventListener('loadedmetadata', layoutStage);
@@ -235,12 +244,6 @@ function setStatus(text: string) {
 }
 
 // ---------- Game wiring ----------
-// Control mode: 'pose' (standing, hips) or 'hands' (seated / wheelchair:
-// both hands are the centroid). Remembered across sessions.
-type Mode = 'pose' | 'hands';
-const MODE_KEY = 'cv-mode';
-let mode: Mode = 'pose';
-try { if (localStorage.getItem(MODE_KEY) === 'hands') mode = 'hands'; } catch {}
 let interpreter: any = mode === 'hands' ? new HandsInterpreter() : new GestureInterpreter();
 const mimic = new ArmMimic();
 let latestLandmarks: any = null;
@@ -554,6 +557,7 @@ function setMode(m: Mode) {
     applyTuning(loadTuning());
     mimic.armsOnly = m === 'hands';
     engine.anchor = m;
+    layoutStage();
     (window as any).__cvtest && ((window as any).__cvtest.interpreter = interpreter);
     if (restoreCalibration()) {
         $('cv-calibrate').textContent = 'Re-calibrate';

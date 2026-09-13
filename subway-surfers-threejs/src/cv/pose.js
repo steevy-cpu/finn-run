@@ -266,9 +266,12 @@ export class PoseEngine {
         const px = lm => [lm.x * canvas.width, lm.y * canvas.height];
         const visible = lm => lm && (lm.visibility === undefined || lm.visibility > 0.4);
 
+        // Seated mode shows only the tracked hands, not the body skeleton.
+        const seated = this.anchor === 'hands';
+
         ctx.lineWidth = 4;
         ctx.strokeStyle = "rgba(0, 230, 118, 0.9)";
-        for (const [a, b] of POSE_CONNECTIONS) {
+        for (const [a, b] of seated ? [] : POSE_CONNECTIONS) {
             if (!visible(landmarks[a]) || !visible(landmarks[b])) continue;
             const [ax, ay] = px(landmarks[a]);
             const [bx, by] = px(landmarks[b]);
@@ -281,7 +284,7 @@ export class PoseEngine {
         // Body joints only — the face/finger landmark clusters are noise here.
         const JOINTS = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28, 31, 32];
         ctx.fillStyle = "rgba(255, 64, 129, 0.95)";
-        for (const i of JOINTS) {
+        for (const i of seated ? [] : JOINTS) {
             if (!visible(landmarks[i])) continue;
             const [x, y] = px(landmarks[i]);
             ctx.beginPath();
@@ -317,7 +320,8 @@ export class PoseEngine {
         }
 
         // Centroid the gesture layer uses: hips (standing) or hands (seated).
-        const [a, b] = this.anchor === 'hands' ? [15, 16] : [23, 24];
+        if (seated && !landmarks.hands) return;
+        const [a, b] = seated ? [15, 16] : [23, 24];
         const hipX = (landmarks[a].x + landmarks[b].x) / 2 * canvas.width;
         const hipY = (landmarks[a].y + landmarks[b].y) / 2 * canvas.height;
         ctx.fillStyle = "rgba(255, 235, 59, 0.95)";
