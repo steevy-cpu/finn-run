@@ -65,6 +65,15 @@ export class ControlPlayer extends EventEmitter {
     gameStatus: GAME_STATUS = GAME_STATUS.READY; // 比赛状态
     gameStart: boolean = false;
     jumpQueuedAt: number = -1; // buffered jump input (see doJump)
+    // Presentation-only: set on an accepted takeoff, consumed on the first
+    // airborne→grounded transition after it (one landing burst per jump).
+    jumpAirborne: boolean = false;
+    private wasAirborne: boolean = false;
+    private fxTmp = new THREE.Vector3();
+    // Finn's origin is his base pivot (soles); lift a hair above the track.
+    private feetWorld() {
+        return this.fxTmp.copy(this.model.position).setY(this.model.position.y + 0.05);
+    }
     physAcc: number = 0; // fixed-timestep accumulator for vertical physics
     raycasterDown: THREE.Raycaster;
     raycasterFrontDown: THREE.Raycaster;
@@ -412,6 +421,7 @@ handleLeftRightMove(delta: number) {
         if (!this.gameStart || this.gameStatus === GAME_STATUS.END) {
             return;
         }
+        this.jumpAirborne = false;
         this.gameStart = false; // freezes movement/collisions (see changeStatus)
         this.gameStatus = GAME_STATUS.END;
         this.status = playerStatus.INIT;
@@ -423,6 +433,8 @@ handleLeftRightMove(delta: number) {
         this.game.emit('gameStatus', this.gameStatus);
     }
     doJump() {
+        this.game.fx?.jump(this.feetWorld());
+        this.jumpAirborne = true;
         this.key = 'w';
         this.downCollide = false;
         this.isJumping = true;
@@ -455,8 +467,10 @@ handleLeftRightMove(delta: number) {
         if (obj.name !== 'coin' || !obj.parent) {
             return;
         }
+        obj.getWorldPosition(this.fxTmp);
         obj.parent.remove(obj);
         this.coin += 1;
+        this.game.fx?.coin(this.fxTmp);
     }
     // Proximity pickup: each coin is worth exactly 1, counted the moment the
     // player actually reaches it. (The collision rays used to collect coins
@@ -558,6 +572,7 @@ handleLeftRightMove(delta: number) {
             this.firstFrontCollide = {isCollide: false, name: object.name};
             // 障碍物撞击面积大于0.75，直接判定游戏结束 播放角色死亡动画
             if (locateObstacal < 0.75) {
+                this.jumpAirborne = false;
                 this.status = playerStatus.DIE;
                 this.gameStatus = GAME_STATUS.END;
                 showToast('You died! Restart to play again!');
@@ -603,6 +618,7 @@ handleLeftRightMove(delta: number) {
         const mistake = this.smallMistake;
         // 小错误到达两次则直接终止比赛
         if (mistake >= 2 && this.gameStatus !== GAME_STATUS.END) {
+            this.jumpAirborne = false;
             this.status = playerStatus.DIE;
             this.gameStatus = GAME_STATUS.END;
             this.game.emit('gameStatus', this.gameStatus);
@@ -632,6 +648,11 @@ handleLeftRightMove(delta: number) {
         // used to zero the jump velocity unless a 50ms grace window had
         // elapsed — which at 30 fps killed nearly every jump a frame or two in.
         const airborne = this.isJumping || !this.downCollide || this.fallingSpeed > 0;
+        if (!airborne && this.wasAirborne && this.jumpAirborne) {
+            this.jumpAirborne = false;
+            this.game.fx?.land(this.feetWorld());
+        }
+        this.wasAirborne = airborne;
         if (airborne) {
             this.physAcc += delta;
             while (this.physAcc >= PHYS_STEP) {

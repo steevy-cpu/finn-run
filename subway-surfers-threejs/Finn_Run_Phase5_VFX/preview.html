@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Finn Run · Motion Lab</title>
+<style>
+:root{color-scheme:dark;font:16px/1.5 system-ui,sans-serif;background:#071521;color:#f5f5ec}*{box-sizing:border-box}body{margin:0}main{max-width:1180px;margin:auto;padding:32px}header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #28404c;padding-bottom:20px}.brand{font-weight:900;letter-spacing:.1em}.brand span{color:#45cfff}.pill{border:1px solid #3b5360;border-radius:40px;padding:6px 12px;font-size:12px;letter-spacing:.08em}.intro{display:flex;gap:24px;justify-content:space-between;align-items:end;margin:28px 0}h1{font-size:clamp(28px,4vw,48px);line-height:1.08;letter-spacing:-.04em;margin:8px 0}p{color:#b2c4ce;margin:0}.eyebrow{font-size:12px;letter-spacing:.14em;color:#ffd45a}.description{max-width:340px;font-size:14px}#stage{height:440px;background:#102431;border:1px solid #304a59;border-radius:20px;overflow:hidden;position:relative}canvas{display:block;width:100%;height:100%}.overlay{position:absolute;top:20px;left:22px;font-size:12px;letter-spacing:.1em;color:#d1e4ef;pointer-events:none}.legend{position:absolute;bottom:20px;left:24px;right:24px;display:flex;justify-content:space-around;color:#afc6d3;font-size:12px;text-transform:uppercase;letter-spacing:.08em;pointer-events:none}.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:18px 0}button,select{font:inherit;color:inherit;border:1px solid #3a5667;background:#132b3c;padding:10px 18px;border-radius:9px;cursor:pointer}button:hover{background:#224256}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #45cfff;outline-offset:3px}button.primary{background:#ffd45a;color:#122232;border-color:#ffd45a;font-weight:750}label{display:flex;align-items:center;gap:8px;font-size:14px;color:#c3d2da}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px}.card{background:#102332;border:1px solid #263f4e;border-radius:12px;padding:20px}.card strong{display:block;margin-bottom:6px;font-size:17px}.card p{font-size:14px}.time{color:#ffd45a;font-size:12px;letter-spacing:.08em;margin-bottom:8px}.foot{font-size:12px;margin-top:18px;color:#8ea8b7}#status{margin-left:auto;font-size:12px;color:#a9c6d4}.error{position:absolute;inset:80px 28px;color:#ffcf8e} @media(max-width:700px){main{padding:20px}.intro{display:block}.description{margin-top:16px}#stage{height:340px}.cards{grid-template-columns:1fr}.controls{gap:8px}#status{margin-left:0;width:100%}.pill{font-size:10px}button{padding:10px 12px}}
+</style>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+</head>
+<body><main>
+<header><div class="brand">FINN <span>RUN</span></div><div class="pill">PHASE 5 · MOTION LAB</div></header>
+<div class="intro"><div><div class="eyebrow">FIRST EFFECTS COLLECTION</div><h1>Small moments.<br>More momentum.</h1></div><p class="description">A gold reward burst and soft footstep dust. Test each effect or play the sequence. This is an isolated visual preview.</p></div>
+<div id="stage" aria-label="Three-dimensional effects preview"><div class="overlay">TROPICAL TRANSIT / EFFECT STUDY 01</div><div class="legend"><span>Collect</span><span>Take off</span><span>Touch down</span></div></div>
+<div class="controls"><button class="primary" id="play">Play sequence</button><button data-effect="coin">Coin</button><button data-effect="jump">Jump</button><button data-effect="land">Land</button><button id="stop">Stop & clear</button><span id="status" role="status" aria-live="polite">Ready</span></div>
+<div class="controls"><label><input type="checkbox" id="reduced"> Reduced effects</label><label>Preview speed <select id="speed"><option value="1">1× actual timing</option><option value="0.25">¼× slow motion</option></select></label></div>
+<section class="cards"><article class="card"><div class="time">01 / 220 MS</div><strong>Coin pickup</strong><p>An expanding gold ring with four small diamond sparks. Reduced effects keeps a quieter ring.</p></article><article class="card"><div class="time">02 / 180 MS</div><strong>Jump dust</strong><p>Three muted puffs at takeoff. Their short life keeps the next obstacle readable.</p></article><article class="card"><div class="time">03 / 200 MS</div><strong>Landing dust</strong><p>Two puffs spread outward on landing. Reduced effects suppresses both dust effects.</p></article></section>
+<p class="foot">The pads are scale references, not game assets. Event buttons simulate accepted game events. No webcam, game controls or network generation.</p>
+</main>
+<script type="module">
+import * as THREE from 'three';
+import { FinnEffects } from './src/FinnEffects.mjs';
+const stage=document.querySelector('#stage'),status=document.querySelector('#status');
+let renderer;
+try { renderer=new THREE.WebGL1Renderer({antialias:true}); }
+catch(error){ const e=document.createElement('p');e.className='error';e.textContent='WebGL is unavailable. Open this preview in a browser with hardware acceleration. '+error.message;stage.append(e);throw error; }
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+stage.prepend(renderer.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color('#102431');
+const camera=new THREE.PerspectiveCamera(40,1,.1,80);camera.position.set(0,6.5,10);camera.lookAt(0,.2,0);
+const floor=new THREE.Mesh(new THREE.BoxGeometry(11,.15,6),new THREE.MeshBasicMaterial({color:0x172f3d}));floor.position.y=-.2;scene.add(floor);
+for(const x of [-3,0,3]) {
+ const pad=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,.12,48),new THREE.MeshBasicMaterial({color:0x294553}));pad.position.set(x,-.04,0);scene.add(pad);
+ const ring=new THREE.Mesh(new THREE.RingGeometry(1.03,1.06,48),new THREE.MeshBasicMaterial({color:x===-3?0xb89840:0x379ab4,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.set(x,.025,0);scene.add(ring);
+}
+for(const x of [-4.8,4.8]){const strip=new THREE.Mesh(new THREE.BoxGeometry(.025,.01,5.4),new THREE.MeshBasicMaterial({color:0x36627a}));strip.position.set(x,-.115,0);scene.add(strip);}
+const fx=new FinnEffects(THREE,scene,{scale:1.5});fx.setRunning(true);
+const positions={coin:new THREE.Vector3(-3,1,0),jump:new THREE.Vector3(0,.15,0),land:new THREE.Vector3(3,.15,0)};
+let auto=false,freeze=false,clock=0,next=0,index=0,last=performance.now();
+const order=['coin','jump','land'];
+const reduced=document.querySelector('#reduced');
+reduced.checked=matchMedia('(prefers-reduced-motion: reduce)').matches;fx.setReduced(reduced.checked);
+function trigger(kind){fx.setRunning(true);fx[kind](positions[kind]);status.textContent=reduced.checked&&kind!=='coin'?'Dust suppressed':kind==='coin'?'Coin collected':kind==='jump'?'Jump accepted':'Landing confirmed';}
+document.querySelectorAll('[data-effect]').forEach(b=>b.onclick=()=>{auto=false;freeze=false;trigger(b.dataset.effect);});
+document.querySelector('#play').onclick=()=>{auto=true;freeze=false;clock=0;next=0;index=0;fx.setRunning(true);};
+document.querySelector('#stop').onclick=()=>{auto=false;freeze=false;fx.setRunning(false);status.textContent='Stopped · effects cleared';};
+reduced.onchange=()=>{fx.setReduced(reduced.checked);status.textContent=reduced.checked?'Reduced effects enabled':'Full effects enabled';};
+const observer=new ResizeObserver(()=>{renderer.setSize(stage.clientWidth,stage.clientHeight);camera.aspect=stage.clientWidth/stage.clientHeight;camera.updateProjectionMatrix();});observer.observe(stage);
+document.addEventListener('visibilitychange',()=>{if(document.hidden){auto=false;fx.setRunning(false);}last=performance.now();});
+function frame(now){const dt=Math.max(0,(now-last)/1000);last=now;if(!freeze){const scaled=dt*Number(document.querySelector('#speed').value);clock+=scaled;if(auto&&clock>=next){trigger(order[index++%3]);next=clock+.8;}fx.update(scaled,camera);}renderer.render(scene,camera);requestAnimationFrame(frame);}requestAnimationFrame(frame);
+// Deterministic samples used by browser checks; not an integration API.
+window.motionLab={sample(kind,age=.08){auto=false;freeze=true;fx.clear();fx.setRunning(true);trigger(kind);fx.update(age,camera);renderer.render(scene,camera);return this.stats();},sampleAll(age=.06){auto=false;freeze=true;fx.clear();fx.setRunning(true);for(const kind of order)fx[kind](positions[kind]);fx.update(age,camera);renderer.render(scene,camera);return this.stats();},stats(){return {three:THREE.REVISION,particles:fx.pool.particles.filter(p=>p.alive).length,rings:fx.pool.rings.filter(r=>r.alive).length,sceneCalls:renderer.info.render.calls};},fx};
+</script></body></html>

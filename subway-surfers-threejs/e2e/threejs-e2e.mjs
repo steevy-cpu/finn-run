@@ -633,6 +633,49 @@ check("guidance: out of frame / too close / too far / off-center detected",
     guide.none === 'Step into frame' && guide.close === 'Too close' && guide.far === 'Come closer'
     && guide.left === 'Move right ➜' && guide.shoulders === 'Show your shoulders');
 
+// 7j. Phase 5 VFX: accepted game events only, one burst each, cleared on end.
+const vfx = await evalJs(`
+(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const T = window.__cvtest, fx = T.fx, ctl = T.control();
+    const alive = list => list.filter(p => p.alive).length;
+    const out = {running: fx.pool.running, inScene: !!ctl.scene.getObjectByName('finn-vfx')};
+    // coin: exactly one ring + 4 sparks per collected coin, none on a repeat
+    fx.clear();
+    const nowPlane = Math.floor(ctl.playerRunDistance / T.roadLength);
+    let mesh = null; ctl.environement.coin[nowPlane]?.traverse(m => { if (!mesh && m.isMesh && m.name === 'coin') mesh = m; });
+    if (mesh) { ctl.collectCoin({object: mesh}); out.ringsAfterCoin = alive(fx.pool.rings); out.sparksAfterCoin = alive(fx.pool.particles);
+        ctl.collectCoin({object: mesh}); out.ringsAfterRepeat = alive(fx.pool.rings); }
+    // jump: dust on an accepted takeoff; a mid-air press (rejected/buffered) adds none
+    fx.clear();
+    while (!ctl.downCollide) await sleep(50);
+    ctl.doJump(); out.dustAfterJump = alive(fx.pool.particles);
+    window.dispatchEvent(new KeyboardEvent('keydown', {key: 'w', bubbles: true})); // mid-air → buffered, no burst now
+    out.dustAfterMidAirPress = alive(fx.pool.particles);
+    // landing: exactly one landing burst (2 dust) — wait for touchdown, count new dust
+    let landed = false;
+    for (let i = 0; i < 80 && !landed; i++) { await sleep(25); landed = !ctl.jumpAirborne; }
+    out.landed = landed; out.landingConsumedFlag = ctl.jumpAirborne === false;
+    // effects never intersect collision rays
+    const ray = ctl.raycasterDown; out.rayIgnores = ray.intersectObject(ctl.scene.getObjectByName('finn-vfx'), true).length === 0;
+    // stop/end clears the pool
+    fx.coin({x: 0, y: 1, z: ctl.model.position.z}); out.beforeEnd = alive(fx.pool.rings) > 0;
+    ctl.checkGameStatus = window.__savedChecks.game; ctl.smallMistake = 2; await sleep(250);
+    out.clearedOnEnd = fx.pool.running === false && alive(fx.pool.items) === 0;
+    // back to a run for the remaining sections
+    T.newGame('Tester');
+    let started = false; for (let i = 0; i < 15 && !started; i++) { await sleep(400); started = T.control().gameStart === true; }
+    const c2 = T.control(); c2.frontCollideCheckStatus = () => {}; c2.checkGameStatus = () => {};
+    out.runningAgain = started && fx.pool.running === true;
+    return out;
+})()
+`);
+check("VFX runs only during a live run, under the scene root", vfx.running && vfx.inScene && vfx.runningAgain);
+check("VFX: exactly one ring + sparks per collected coin, none on repeat", vfx.ringsAfterCoin === 1 && vfx.sparksAfterCoin === 4 && vfx.ringsAfterRepeat === 1);
+check("VFX: dust on accepted takeoff, none for a mid-air press", vfx.dustAfterJump === 3 && vfx.dustAfterMidAirPress === 3);
+check("VFX: landing consumed the one-shot flag", vfx.landed && vfx.landingConsumedFlag);
+check("VFX: collision rays ignore effects; end clears the pool", vfx.rayIgnores && vfx.beforeEnd && vfx.clearedOnEnd);
+
 // 8. Sensitivity sliders update the interpreter and persist
 const tuning = await evalJs(`
 (() => {

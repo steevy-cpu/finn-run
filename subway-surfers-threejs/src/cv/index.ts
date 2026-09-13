@@ -168,6 +168,8 @@ panel.innerHTML = `
             <input type="range" id="cv-band" min="0.16" max="0.60" step="0.02">
             <span class="val" id="cv-band-val"></span>
         </label>
+        <label class="cv-check"><input type="checkbox" id="cv-fx" checked> Effects (coin sparkle, jump &amp; landing dust)</label>
+        <label class="cv-check"><input type="checkbox" id="cv-fx-reduced"> Reduced effects (quieter ring, no dust)</label>
     </div>
 `;
 document.body.appendChild(panel);
@@ -690,6 +692,43 @@ $('cv-mimic').addEventListener('change', e => {
     mimic.enabled = (e.target as HTMLInputElement).checked;
 });
 
+// ---------- Effects settings (Phase 5) ----------
+// Master toggle (?fx=0 for A/B comparisons) and Reduced Effects, which
+// defaults from prefers-reduced-motion unless the user saved a choice.
+{
+    const FX_KEY = 'cv-fx', FX_REDUCED_KEY = 'cv-fx-reduced';
+    const fxInput = $('cv-fx') as HTMLInputElement;
+    const reducedInput = $('cv-fx-reduced') as HTMLInputElement;
+    let enabled = true, reduced = false;
+    try {
+        const q = new URLSearchParams(location.search).get('fx');
+        if (q === '0' || q === '1') localStorage.setItem(FX_KEY, q);
+        enabled = localStorage.getItem(FX_KEY) !== '0';
+        const savedReduced = localStorage.getItem(FX_REDUCED_KEY);
+        reduced = savedReduced !== null ? savedReduced === '1'
+            : matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch {}
+    const apply = () => {
+        game.fxEnabled = enabled;
+        game.fx?.setReduced(reduced);
+        if (!enabled) game.fx?.setRunning(false);
+        else if (gameStarted && !gameEnded) game.fx?.setRunning(true);
+    };
+    fxInput.checked = enabled;
+    reducedInput.checked = reduced;
+    fxInput.addEventListener('change', () => {
+        enabled = fxInput.checked;
+        try { localStorage.setItem(FX_KEY, enabled ? '1' : '0'); } catch {}
+        apply();
+    });
+    reducedInput.addEventListener('change', () => {
+        reduced = reducedInput.checked;
+        try { localStorage.setItem(FX_REDUCED_KEY, reduced ? '1' : '0'); } catch {}
+        apply();
+    });
+    apply();
+}
+
 // ---------- Fullscreen ----------
 function toggleFullscreen() {
     if (document.fullscreenElement) {
@@ -891,6 +930,7 @@ async function captureFace(name: string) {
     audio: {theme: themeAudio, crash: crashAudio},
     roadLength,
     board: {load: loadBoard, save: saveBoard, record: recordRun},
+    get fx() { return game.fx; },
     setMode,
     get mode() { return mode; },
     newGame(name: string) {

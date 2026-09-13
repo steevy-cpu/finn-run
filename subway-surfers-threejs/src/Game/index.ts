@@ -10,6 +10,8 @@ import {disposeNode} from './utils/dispose';
 import { GameScene } from './scene';
 import Camera from './camera';
 import Time from './time';
+// @ts-ignore — plain JS module (Phase 5 VFX kit)
+import {FinnEffects} from './FinnEffects.mjs';
 // FPS overlay is a dev tool only; never shown in the production build.
 const stats = import.meta.env.DEV ? new Stats() : null;
 if (stats) document.body.appendChild(stats.dom);
@@ -26,6 +28,14 @@ export default class Game extends EventEmitter {
     player: Player | undefined;
     clock: THREE.Clock = new THREE.Clock();
     windowResizeFn!: (e: Event) => void;
+    // Phase 5 VFX: cosmetic only, lives under the identity-transformed scene,
+    // outside every collision group. Runs only while a run is live.
+    fx: any;
+    fxEnabled: boolean = true;
+    private onVisibility = () => {
+        if (document.hidden) this.fx?.setRunning(false);
+        else if (this.fxEnabled && this.player?.controlPlayer?.gameStatus === 'start') this.fx?.setRunning(true);
+    };
     constructor(canvas?: HTMLElement) {
         super();
         if (Game.instance) {
@@ -53,12 +63,23 @@ export default class Game extends EventEmitter {
         // 环境
         this.environment = new Environment();
         this.player = new Player();
+        this.fx = new FinnEffects(THREE, this.scene, {scale: 1.6});
+        this.on('gameStatus', (status: string) => {
+            // The restart handler empties the scene, which also drops the
+            // effects group — re-attach it before any run can emit.
+            if (this.fx.group.parent !== this.scene) this.scene.add(this.fx.group);
+            // 'start' = actual gameplay after the countdown; anything else clears.
+            this.fx.setRunning(status === 'start' && this.fxEnabled);
+        });
+        document.addEventListener('visibilitychange', this.onVisibility);
         this.resize();
         this.resource();
     }
     update() {
         const delta = this.time.delta / 1000;
         stats?.update();
+        // VFX advance with the transforms about to be rendered (seconds).
+        this.fx?.update(delta, this.camera.perspectiveCamera);
         this.renderer.update();
         this.player?.update && this.player.update(delta);
     }
@@ -77,6 +98,7 @@ export default class Game extends EventEmitter {
     }
     removelistener() {
         window.removeEventListener('resize', this.windowResizeFn);
+        document.removeEventListener('visibilitychange', this.onVisibility);
     }
     resize() {
         this.renderer.resize();
@@ -85,6 +107,7 @@ export default class Game extends EventEmitter {
     disposeGame() {
         cache?.clearCacheData();
         this.removelistener();
+        this.fx?.dispose();
         disposeNode(this.scene);
         this.scene.clear();
         this.renderer.dispose();
