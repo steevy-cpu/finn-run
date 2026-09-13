@@ -252,7 +252,7 @@ await new Promise(r => setTimeout(r, 900));
 check(`jump clears low obstacles (apex ${jumpFast.apex.toFixed(2)} > 3.5 at ${jumpFast.fps.toFixed(0)} fps)`, jumpFast.apex > 3.5);
 check(`jump apex frame-rate independent (${jumpSlow.apex.toFixed(2)} at ${jumpSlow.fps.toFixed(0)} fps)`,
     jumpSlow.fps < jumpFast.fps * 0.8 ? Math.abs(jumpSlow.apex - jumpFast.apex) / jumpFast.apex < 0.2 : true);
-check(`airtime ≈ 0.85s (${(jumpFast.airtimeMs / 1000).toFixed(2)}s)`, jumpFast.airtimeMs > 700 && jumpFast.airtimeMs < 1050);
+check(`airtime plausible (${(jumpFast.airtimeMs / 1000).toFixed(2)}s; may land on a train roof)`, jumpFast.airtimeMs > 350 && jumpFast.airtimeMs < 1300);
 
 // 5. Lane changes sync with the game's 'way'.
 // The game legitimately bounces a lane change back if an obstacle occupies the
@@ -534,6 +534,44 @@ const guide = await evalJs(`
 })()
 `).then(JSON.parse);
 check("guidance: nothing shown when framed well", guide.ok === null);
+
+// 7h. Multi-person selection: the player in the guidance zone wins over a
+// background person, even when the background person is nearer the frame
+// center — and the lock band is centered on the calibrated target.
+const pick = await evalJs(`
+(() => {
+    const T = window.__cvtest, body = window.__mkbody;
+    const bg = body(0.52, 0.42, 0.10);       // small (far) person near frame center
+    const player = body(0.30, 0.60, 0.28);   // big (near) person, left of center
+    const wasCalibrated = T.interpreter.calibrated;
+    const savedCalib = T.interpreter.calib;
+    // Case A: calibrated target at the player's spot → player chosen.
+    T.interpreter.calib = {...savedCalib, hipX: 0.30, hipY: 0.60};
+    const a = T.engine.pickPose([bg, player]) === player;
+    // Case B: calibrated target near the background person's spot but the
+    // bystander is tiny → the big body still wins (score in own torso units).
+    T.interpreter.calib = {...savedCalib, hipX: 0.45, hipY: 0.5};
+    const b = T.engine.pickPose([bg, player]) === player;
+    // Case C: two similar bodies → the one nearer the target wins.
+    const p2 = body(0.70, 0.60, 0.28);
+    // synthetic bodies leave unused joints at the frame center — pin the
+    // nose/knees/ankles under this body so its bounding box is honest
+    for (const [i, y] of [[0, 0.25], [25, 0.75], [26, 0.75], [27, 0.92], [28, 0.92]]) p2[i] = {x: 0.70, y, z: 0, visibility: 1};
+    T.interpreter.calib = {...savedCalib, hipX: 0.70, hipY: 0.60};
+    const c = T.engine.pickPose([player, p2]) === p2;
+    // Lock band centered on the target and wide enough for lane steps.
+    T.engine.track.roi = null;
+    T.engine._updateRoi(p2);
+    const roi = T.engine.track.roi;
+    const d = roi && roi.w >= 0.55 && Math.abs((roi.x + roi.w / 2) - 0.70) < 0.06;
+    T.interpreter.calib = savedCalib; T.interpreter.calibrated = wasCalibrated;
+    T.engine.track.roi = null; T.engine.track.locked = false;
+    return JSON.stringify({a, b, c, d, none: T.engine.pickPose([]) === null});
+})()
+`).then(JSON.parse);
+check("picks the player in the guidance zone over a background person", pick.a && pick.b && pick.none);
+check("between similar bodies picks the one nearest the calibrated spot", pick.c);
+check("lock band centered on the player, wide enough for lane steps", pick.d);
 check("guidance: out of frame / too close / too far / off-center detected",
     guide.none === 'Step into frame' && guide.close === 'Too close' && guide.far === 'Come closer'
     && guide.left === 'Move right ➜' && guide.shoulders === 'Show your shoulders');

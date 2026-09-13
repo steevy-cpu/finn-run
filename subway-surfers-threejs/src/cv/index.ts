@@ -591,6 +591,9 @@ const engine = new PoseEngine({
     onStatus: setStatus,
     onDraw: drawGuides,
     lowPower: LOW_POWER,
+    // Guidance center: the (adapting) calibrated hip point once calibrated.
+    target: () => interpreter.calibrated && interpreter.calib
+        ? {x: interpreter.calib.hipX, y: interpreter.calib.hipY} : null,
     onResults: (landmarks: any) => {
         latestLandmarks = landmarks;
         landmarksAt = performance.now();
@@ -600,6 +603,7 @@ const engine = new PoseEngine({
             lastStatsAt = landmarksAt;
             $('cv-stats').textContent =
                 `pose ${engine.fps} fps · ${Math.round(engine.inferMs)} ms`
+                + (engine.track?.locked ? ' · locked on player' : ' · searching')
                 + (LOW_POWER ? ' · low-power' : '');
         }
         if (interpreter.debug.calibrating) {
