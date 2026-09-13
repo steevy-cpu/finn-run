@@ -10,6 +10,7 @@ import Player from '@/Game/player';
 import Game from '@/Game';
 import {roadLength} from '@/Game/environment';
 import {LOW_POWER} from '@/Game/perf';
+import {PURSUER, CATCH_VIDEO} from '@/Game/envart';
 
 const KEY_LABELS: Record<string, string> = {a: '←', d: '→', w: '↑', s: '↓', p: 'P', r: 'R'};
 
@@ -134,6 +135,22 @@ style.textContent = `
 /* Phase 4-only elements (brand strip, control-mode switch, section titles):
    revealed by assets/phase4.css under <html data-ui="phase4">. */
 .p4 { display: none; }
+/* Catch cinematic overlay (opt-in ?catchVideo=1 with ?arturo=1): a DOM
+   video over the GAME pane only; navy letterbox; camera panel untouched. */
+#cv-catch {
+    position: fixed; left: 0; top: 0; width: 50vw; height: 100vh; z-index: 1400;
+    background: #071521; display: none; align-items: center; justify-content: center;
+}
+#cv-catch.on { display: flex; }
+#cv-catch video { width: 100%; height: 100%; object-fit: contain; background: #071521; display: block; }
+#cv-catch-skip {
+    position: absolute; right: 18px; bottom: 18px; z-index: 2;
+    padding: 12px 22px; font: 800 16px/1 system-ui, -apple-system, sans-serif;
+    border-radius: 10px; border: 2px solid #45cfff; background: rgba(7, 21, 33, .88);
+    color: #f5f5ec; cursor: pointer;
+}
+#cv-catch-skip:hover { background: #45cfff; color: #071521; }
+#cv-catch-skip:focus-visible { outline: 3px solid #45cfff; outline-offset: 3px; }
 `;
 document.head.appendChild(style);
 
@@ -210,6 +227,10 @@ gameOverlays.innerHTML = `
                 <button id="cv-name-start" class="cv-btn">Start</button>
             </div>
         </div>
+    </div>
+    <div id="cv-catch" aria-hidden="true">
+        <video id="cv-catch-video" muted playsinline preload="none" aria-label="Arturo catches Finn"></video>
+        <button id="cv-catch-skip" type="button">Skip ▸</button>
     </div>
     <div id="cv-board" class="cv-modal" hidden role="dialog" aria-modal="true" aria-labelledby="cv-board-title">
         <div class="cv-card">
@@ -536,6 +557,7 @@ function hookCollisionSound(ctl: any) {
 const game = new (Game as any)();
 game.on('gameStatus', (status: string) => {
     setTimeout(syncModeUI, 0); // after the flags below settle
+    if (status !== 'end') cancelCatch('status:' + status); // restart / fresh run cancels the cinematic
     if (status === 'start') {
         gameStarted = true;
         gameEnded = false;
@@ -559,6 +581,10 @@ game.on('gameStatus', (status: string) => {
         } else {
             playCrash();
             setStatus('You crashed! Press New Game to play again');
+            // Authoritative game over (the game's own end, not Stop): the
+            // score/leaderboard were committed above; the cinematic only
+            // delays the reveal of the results already on screen.
+            playCatch();
         }
     } else if (status === 'ready') {
         // Fresh run (r pressed): player model reloads, lanes reset to center,
@@ -602,6 +628,7 @@ $('cv-name-input').addEventListener('keydown', e => {
 // Stop (admin button, always visible): end a live run and reveal the Top 3;
 // outside a run it simply reveals the Top 3.
 $('cv-stop').addEventListener('click', () => {
+    cancelCatch('stop');
     if (gameStarted && !gameEnded) {
         stoppedByUser = true;
         controlPlayer()?.endRun(); // 'end' handler shows the board + confetti
@@ -989,6 +1016,79 @@ async function captureFace(name: string) {
     } catch {}
 }
 
+// ---------- Catch cinematic (opt-in: ?catchVideo=1 AND ?arturo=1) ----------
+// A silent MP4 shown over the game pane after the game's own game-over.
+// It never decides anything: the run is recorded before it starts, and any
+// exit (ended / Skip / Escape / error / timeout / restart / Stop / hidden
+// tab) reveals the results that are already there — exactly once per run.
+const CATCH_SRC = '/assets/video/arturo-catch.mp4';
+const catchEl = $('cv-catch');
+const catchVideo = $('cv-catch-video') as HTMLVideoElement;
+const catchSkip = $('cv-catch-skip') as HTMLButtonElement;
+const catchEnabled = PURSUER && CATCH_VIDEO;
+const reducedMotion = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
+let catchGen = 0;
+let catchActive = false;
+let catchTimer: ReturnType<typeof setTimeout> | null = null;
+let catchLoadTimer: ReturnType<typeof setTimeout> | null = null;
+const catchStats = {plays: 0, exits: 0, bypassed: 0, lastReason: ''};
+if (catchEnabled) {
+    // Staged once, outside play; no re-download or re-decode per run.
+    catchVideo.preload = 'auto';
+    catchVideo.src = CATCH_SRC;
+    catchVideo.load();
+}
+function catchDuration() {
+    const d = catchVideo.duration;
+    return isFinite(d) && d > 0 ? d : 4; // measured clip length, else the brief's 4 s
+}
+function playCatch(): boolean {
+    if (!catchEnabled) return false;
+    if (reducedMotion()) { catchStats.bypassed++; return false; } // OS preference: straight to results
+    if (catchActive) return false;                               // one playback per game over
+    const gen = ++catchGen;
+    catchActive = true;
+    catchStats.plays++;
+    catchEl.classList.add('on');
+    catchEl.setAttribute('aria-hidden', 'false');
+    catchSkip.focus();
+    try { catchVideo.currentTime = 0; } catch {}
+    // Loading allowance: playback must actually begin within 2.5 s.
+    catchLoadTimer = setTimeout(() => exitCatch(gen, 'load-timeout'), 2500);
+    catchVideo.addEventListener('playing', () => {
+        if (gen !== catchGen) return;
+        if (catchLoadTimer) clearTimeout(catchLoadTimer);
+        // Bounded watchdog from the measured duration + a small allowance.
+        catchTimer = setTimeout(() => exitCatch(gen, 'watchdog'), (catchDuration() + 1.5) * 1000);
+    }, {once: true});
+    let p: Promise<void> | undefined;
+    try { p = catchVideo.play(); } catch { exitCatch(gen, 'play-threw'); return true; }
+    p?.catch(() => exitCatch(gen, 'play-rejected'));
+    return true;
+}
+function exitCatch(gen: number, reason: string) {
+    if (!catchActive || gen !== catchGen) return; // stale event from an earlier run, or already exited
+    catchActive = false;
+    catchStats.exits++;
+    catchStats.lastReason = reason;
+    if (catchTimer) clearTimeout(catchTimer);
+    if (catchLoadTimer) clearTimeout(catchLoadTimer);
+    catchTimer = catchLoadTimer = null;
+    try { catchVideo.pause(); } catch {}
+    catchEl.classList.remove('on');
+    catchEl.setAttribute('aria-hidden', 'true');
+    // Results (status line + "play again" mask, or the Top 3 if Stop was
+    // pressed) are already on screen underneath; hand focus to the restart control.
+    const ng = $('cv-newgame') as HTMLButtonElement;
+    if (!ng.disabled && ng.offsetParent !== null && document.activeElement === catchSkip) ng.focus();
+}
+function cancelCatch(reason: string) { exitCatch(catchGen, reason); }
+catchVideo.addEventListener('ended', () => exitCatch(catchGen, 'ended'));
+catchVideo.addEventListener('error', () => exitCatch(catchGen, 'media-error'));
+catchSkip.addEventListener('click', () => exitCatch(catchGen, 'skip'));
+window.addEventListener('keydown', e => { if (catchActive && e.key === 'Escape') exitCatch(catchGen, 'escape'); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) cancelCatch('hidden'); });
+
 // Test seam for automated checks.
 (window as any).__cvtest = {
     interpreter,
@@ -999,6 +1099,15 @@ async function captureFace(name: string) {
     board: {load: loadBoard, save: saveBoard, record: recordRun},
     get fx() { return game.fx; },
     get pursuer() { return game.pursuer; },
+    catch: {
+        enabled: catchEnabled,
+        get active() { return catchActive; },
+        stats: catchStats,
+        video: catchVideo,
+        play: playCatch,
+        cancel: cancelCatch,
+        setSrc(src: string) { catchVideo.src = src; catchVideo.load(); },
+    },
     get finnPolish() { return (Player as any).instance?.polish ?? null; },
     get finnAudit() { return (Player as any).instance?.audit ?? null; },
     setMode,

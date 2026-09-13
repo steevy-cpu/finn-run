@@ -847,6 +847,64 @@ if (hasPursuer) {
     if (Object.values(pr).some(v => v === false)) console.log("    pursuer:", JSON.stringify(pr));
 }
 
+// 13. Catch cinematic (only when ?catchVideo=1 with ?arturo=1): one playback
+// per game over, Skip/Escape/ended converge without duplicate results,
+// missing media falls back at once, restart cancels, reduced motion bypasses.
+const catchOn = await evalJs(`!!window.__cvtest.catch?.enabled`);
+if (catchOn) {
+    await evalJs(`window.__cvtest.catch.cancel('test-reset'); 'ok'`);
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const S = () => evalJs(`JSON.stringify({...window.__cvtest.catch.stats, active: window.__cvtest.catch.active, shown: document.getElementById('cv-catch').classList.contains('on'), paused: window.__cvtest.catch.video.paused})`).then(JSON.parse);
+    // a) reduced motion → bypass
+    await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+    const b0 = await S();
+    await evalJs(`window.__cvtest.control().game.emit('gameStatus', 'end'); 'ok'`); await sleep(150);
+    const b1 = await S();
+    await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
+    check("catch: reduced motion bypasses the cinematic (results immediately)", b1.bypassed === b0.bypassed + 1 && b1.plays === b0.plays && !b1.shown);
+    // b) missing media → immediate fallback; duplicate game-over cannot start a second playback
+    await evalJs(`window.__cvtest.catch.setSrc('/assets/video/does-not-exist.mp4'); 'ok'`); await sleep(300);
+    const m0 = await S();
+    await evalJs(`const g = window.__cvtest.control().game; g.emit('gameStatus', 'end'); g.emit('gameStatus', 'end'); 'ok'`);
+    let m1; for (let i = 0; i < 40; i++) { await sleep(100); m1 = await S(); if (!m1.active) break; }
+    check("catch: missing media falls back to results at once, one play, one exit", m1.plays === m0.plays + 1 && m1.exits === m0.exits + 1 && !m1.shown && /play-rejected|media-error|load-timeout/.test(m1.lastReason));
+    check("catch: focus lands on New Game after fallback", await evalJs(`document.activeElement === document.getElementById('cv-newgame')`));
+    // c) real media (if present): plays, Skip / Escape / ended / restart all converge once
+    const hasMp4 = await evalJs(`fetch('/assets/video/arturo-catch.mp4', {method: 'HEAD'}).then(r => r.ok).catch(() => false)`);
+    if (hasMp4) {
+        await evalJs(`window.__cvtest.catch.setSrc('/assets/video/arturo-catch.mp4'); 'ok'`);
+        for (let i = 0; i < 50; i++) { await sleep(100); if (await evalJs(`window.__cvtest.catch.video.readyState >= 1`)) break; }
+        const r0 = await S();
+        await evalJs(`window.__cvtest.control().game.emit('gameStatus', 'end'); 'ok'`);
+        let r1; for (let i = 0; i < 30; i++) { await sleep(100); r1 = await S(); if (!r1.paused) break; }
+        const skipFocused = await evalJs(`document.activeElement === document.getElementById('cv-catch-skip')`);
+        check("catch: real clip plays over the game pane with Skip focused", r1.plays === r0.plays + 1 && r1.shown && !r1.paused && skipFocused);
+        await evalJs(`document.getElementById('cv-catch-skip').click(); 'ok'`); await sleep(100);
+        const r2 = await S();
+        check("catch: Skip exits once, pauses the clip, hides the overlay", r2.exits === r0.exits + 1 && r2.lastReason === 'skip' && !r2.shown && r2.paused && !r2.active);
+        await evalJs(`window.__cvtest.control().game.emit('gameStatus', 'end'); 'ok'`); await sleep(400);
+        await evalJs(`window.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); 'ok'`); await sleep(100);
+        const r3 = await S();
+        check("catch: Escape skips", r3.lastReason === 'escape' && !r3.shown && r3.exits === r0.exits + 2);
+        await evalJs(`window.__cvtest.control().game.emit('gameStatus', 'end'); 'ok'`); await sleep(400);
+        await evalJs(`window.__cvtest.control().game.emit('gameStatus', 'ready'); 'ok'`); await sleep(100);
+        const r4 = await S();
+        check("catch: restart (ready) cancels playback", r4.lastReason === 'status:ready' && !r4.shown);
+        // The real 'ready' handler runs the 3-2-1 countdown and auto-starts a
+        // run; let that settle (god-mode it) so its 'start' cannot cancel the
+        // natural-end playback below.
+        { let started = false; for (let i = 0; i < 15 && !started; i++) { await sleep(400); started = await evalJs(`window.__cvtest.control().gameStart === true`); } }
+        await evalJs(`(() => { const c = window.__cvtest.control(); c.frontCollideCheckStatus = () => {}; c.checkGameStatus = () => {}; c.collideCheckAll = () => { c.downCollide = true; c.frontCollide = false; c.leftCollide = false; c.rightCollide = false; }; return 'ok'; })()`);
+        await evalJs(`window.__cvtest.control().game.emit('gameStatus', 'end'); 'ok'`);
+        let r5; for (let i = 0; i < 80; i++) { await sleep(100); r5 = await S(); if (!r5.active) break; }
+        check("catch: natural end converges to results exactly once", r5.lastReason === 'ended' && r5.exits === r0.exits + 4 && r5.plays === r0.plays + 4);
+    } else {
+        console.log("  (catch: arturo-catch.mp4 not present — real-clip checks skipped)");
+    }
+    const kept = await evalJs(`JSON.stringify({board: window.__cvtest.board.load().length > 0, status: /crashed|New Game/i.test(document.getElementById('cv-status').textContent)})`).then(JSON.parse);
+    check("catch: leaderboard record and results text preserved", kept.board && kept.status);
+}
+
 const shot = await send("Page.captureScreenshot", { format: "png" });
 if (shot.result?.data && process.argv[3]) {
     const fs = await import("fs");

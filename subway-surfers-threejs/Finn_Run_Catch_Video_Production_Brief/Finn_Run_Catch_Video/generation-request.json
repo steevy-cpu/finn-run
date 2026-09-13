@@ -1,0 +1,26 @@
+{
+  "job_id": "648f1e44-f785-496c-8700-1f9d2035eeb2",
+  "quoted_credits": 26,
+  "balance_before": 1159,
+  "request": {
+    "aspect_ratio": "16:9",
+    "bitrate_mode": "standard",
+    "count": 1,
+    "duration": 4,
+    "generate_audio": false,
+    "medias": [
+      {
+        "role": "image",
+        "value": "3f1ac4f8-5478-4d2e-9922-5acfa2ee9fc1"
+      },
+      {
+        "role": "image",
+        "value": "98dcee78-a60d-43f8-8a17-693881981551"
+      }
+    ],
+    "mode": "omni_reference",
+    "model": "seedance_2_5",
+    "prompt": "Create one continuous 4-second stylized 3D arcade game-over cutscene for FINN RUN. Use reference image 1 only as Finn's character identity: friendly blue shark mascot, white face and muzzle, black head accents, prominent shark nose and dorsal fin, expressive eyes and mischievous toothy grin, gray short-sleeve sports jersey with black sleeve bands and black-and-white hem stripes, black shorts, blue legs, oversized black athletic shoes with white soles. Reference image 2 is Arturo: preserve his face, warm brown skin, short black curls, small hoop earrings, subtle facial hair, black sports jersey with ivory collar and hem, narrow cyan piping, charcoal joggers, black athletic shoes with ivory soles and cyan accents. Translate both into the SAME clean simplified 3D game shading, matte surfaces and readable shapes. Both approximately the same standing height. No redesign, no extra characters, no duplicated limbs. Environment: colorful tropical arcade rail corridor, three parallel railway tracks, chunky teal/navy/purple buildings with simplified windows and small cyan trim, one distant parked blue-and-cream commuter train, pale blue sky, clear soft daylight, simplified medium-poly geometry matching a lightweight browser game. Track ahead is clear, no collision with train. Single medium-wide three-quarter SIDE camera, gentle tracking, both characters' heads and bodies visible, no camera cuts. Finn is screen right slightly ahead, Arturo screen left one stride behind; both move screen right. 0.0-1.0s: they jog the final two short steps and slow down together. 1.0-2.2s: Arturo calmly reaches with his nearer hand and rests it visibly on Finn's near shoulder, gently stopping him; keep hand contact stable and anatomically clear. 2.2-3.2s: Finn turns his head toward Arturo, lowers his shoulders and gives a sheepish guilty grin; Arturo gives an amused triumphant smile. 3.2-4.0s: both settle into a readable still final pose, Arturo's hand remains resting on Finn's shoulder. Playful campus mascot rivalry; no violence, tackling, falling or frightening expressions. No dialogue, no music, no sound, no captions, no title card, no HUD, no webcam panel, no borders, no watermark. All important action inside the central 80 percent of the frame. This is a self-contained game-over cinematic, not an exact continuation of a gameplay camera.",
+    "resolution": "720p"
+  }
+}

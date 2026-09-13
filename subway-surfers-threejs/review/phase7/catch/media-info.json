@@ -1,0 +1,31 @@
+{
+  "asset": "public/assets/video/arturo-catch.mp4",
+  "source_job": "648f1e44-f785-496c-8700-1f9d2035eeb2",
+  "model": "seedance_2_5 (omni_reference)",
+  "bytes": 2261664,
+  "sha256": "57a31d9a2bae54baeb457afe08de20f86dd2be440b58cd6337e0b7ca23ce0475",
+  "original_bytes_kept": true,
+  "duration_s": 4.042,
+  "width": 1280,
+  "height": 720,
+  "aspect": "16:9",
+  "video_codec": "h264 High yuv420p",
+  "fps": "24/1",
+  "frames": 97,
+  "bit_rate": 4476695,
+  "audio_streams": 0,
+  "measured_by": "ffprobe (Homebrew) 2026-09-13",
+  "inspection": {
+    "frames_sampled": "every 0.5 s (contact sheet) + 1.2 / 1.6 / 2.0 / 3.9 s",
+    "action": "jog and slow (0-1 s), Arturo's near hand rests on Finn's near shoulder (visible by ~1.5 s and held to the end), Finn turns with a sheepish grin (~2.5 s), amused smile from Arturo, held final pose",
+    "arturo_identity": "consistent: face, curls, hoop earring, chain, black jersey with cyan piping and ivory collar/hem, charcoal joggers",
+    "finn_identity": "consistent mascot: white face, black head accents, blue body, gray SHARKS jersey with black sleeve bands, black shorts, glove hands; dorsal fin visible only in the opening frames",
+    "mismatches": [
+      "both characters are framed from the knees up from ~1.5 s onward (feet out of frame); brief asked for bodies visible",
+      "Finn's dorsal fin disappears after the opening jog",
+      "camera is a static-ish three-quarter side view; slight drift, no cuts"
+    ],
+    "unwanted_elements": "none seen (no text, HUD, borders, watermark, extra characters)"
+  },
+  "status": "integrated behind ?catchVideo=1 (default off); visual approval pending Steeve's in-game review"
+}

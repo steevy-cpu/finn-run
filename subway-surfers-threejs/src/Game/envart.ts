@@ -76,3 +76,14 @@ export const PURSUER_URL = (() => {
         return q && /^\/assets\/[\w\-./]+\.glb$/.test(q) ? q : fallback;
     } catch { return fallback; }
 })();
+
+// Catch cinematic (game-over video): ?catchVideo=1|0 (persisted in
+// cv-catch-video, default off). Plays only with the pursuer enabled and
+// only after the game's own game-over — see src/cv/index.ts.
+export const CATCH_VIDEO = (() => {
+    try {
+        const q = new URLSearchParams(location.search).get('catchVideo');
+        if (q === '1' || q === '0') localStorage.setItem('cv-catch-video', q);
+        return localStorage.getItem('cv-catch-video') === '1';
+    } catch { return false; }
+})();

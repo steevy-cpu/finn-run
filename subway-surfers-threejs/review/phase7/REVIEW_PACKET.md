@@ -100,3 +100,35 @@ The +5 geometries / +1 texture per restart is identical with Arturo off: a **pre
 - Arturo is hidden for the stretch where Finn's trail crosses a jumped barrier; he never jumps.
 - `arturo.glb` is 8.3 MB (one buffer; texture ~PNG). Load happens once per page; it is not preloaded before the first run, so on a slow disk the first run may start before he appears (handled: he joins on arrival).
 - 12 523 triangles vs the 12k target: kept as delivered (no decimation, per instruction).
+
+---
+
+# Catch cinematic (game-over video) — integration packet
+
+Opt-in `?catchVideo=1` (persisted `cv-catch-video`, default off). Plays only when the pursuer flag is also on and the game itself reaches game over. Not visually approved: Steeve has not yet reviewed the clip in the game.
+
+## The clip (job `648f1e44-f785-496c-8700-1f9d2035eeb2`, Seedance 2.5 omni-reference, 26 credits already spent by the brief; nothing regenerated)
+Measured with ffprobe on the downloaded original (`catch/media-info.json`):
+| duration | size | codec | fps / frames | audio | bytes | sha256 |
+|---|---|---|---|---|---|---|
+| 4.042 s | 1280×720 (16:9) | H.264 High, yuv420p | 24 / 97 | none | 2 261 664 | `57a31d9a…0475` |
+
+Original bytes kept as `public/assets/video/arturo-catch.mp4` (no conversion needed: H.264/AAC-less MP4 plays in Chrome, Safari and Edge).
+
+Frame inspection (`catch/contact-sheet-0.5s-steps.png`, `frame-1.6s-contact.png`, `frame-3.9s-final.png`): jog and slow (0–1 s); Arturo's near hand rests visibly on Finn's near shoulder from ~1.5 s and stays there; Finn turns with a sheepish grin (~2.5 s); Arturo's amused smile; held final pose. Arturo's identity and outfit are consistent throughout. Finn reads as the mascot (white face, blue body, gray SHARKS jersey with black sleeve bands, black shorts, glove hands). No text, HUD, borders, watermark or extra characters.
+
+**Mismatches, reported honestly:** (1) from the contact onward both characters are framed from the knees up, so feet are out of the clip's own frame — the brief asked for full bodies; (2) Finn's dorsal fin is visible only during the opening jog; (3) the shot is a near-static three-quarter side view rather than a tracking shot. None of these are caused by the overlay (it letterboxes the full 16:9 frame with `object-fit: contain`).
+
+## Behaviour (src/cv/index.ts, UI layer only)
+- Trigger: the game's own `end` when it was not the Stop button. Stop, actor distance, tracking loss and ordinary mistakes never trigger it. Score and leaderboard are recorded first (unchanged `recordRun` path); the crash status line and "play again" mask are set before the video starts, so the cinematic only delays their reveal.
+- Overlay `#cv-catch`: DOM `<video muted playsinline preload="none">` over the game pane only (navy `#071521` letterbox, `object-fit: contain`); the camera panel and overlay canvas are untouched. Staged once at startup when both flags are on (`preload="auto"` + `load()`), never reloaded per run.
+- Skip button visible from the first frame and focused; Escape skips. On any exit focus goes to New Game.
+- Exits (exactly once per game over, stale events ignored via a generation token): `ended`, Skip, Escape, media `error`, `play()` rejection, 2.5 s loading allowance, watchdog at measured duration + 1.5 s, restart (`ready`/`start`), Stop, hidden tab. Repeated `end` events while active cannot start a second playback.
+- `prefers-reduced-motion: reduce` bypasses the cinematic (OS preference; independent of the Effects/Reduced-effects controls). Audio: the clip is silent; the existing crash sound and theme behaviour are unchanged.
+- Nothing in gameplay, collisions, MediaPipe, controls, Finn or the pursuer changed.
+
+## Verification
+- e2e `?ui=phase4&arturo=1&catchVideo=1` with the real clip: **101/101** (9 new checks: reduced-motion bypass; missing-media fallback with one play/one exit and focus on New Game; real clip plays with Skip focused; Skip exits once and hides; Escape; restart cancels; natural `ended` converges exactly once; leaderboard and results text preserved). With the flag off (`?ui=original&arturo=0&catchVideo=0`): 85/85. 0 console errors.
+- Captures in `catch/`: `catch-overlay-game-pane-1440x900.png` (narrow game viewport) and `catch-overlay-fullscreen-1920x1080.png` (fullscreen-sized viewport), both taken ~1.7 s into a real game over (second mistake ends the run through the game's own `checkGameStatus`). Neither character is cropped by the overlay.
+
+Preview: `http://localhost:5180/?env=phase2&phase3=1&fx=1&finnPolish=original&ui=phase4&arturo=1&catchVideo=1` — crash into anything; Stop still shows the Top 3 without the video.
