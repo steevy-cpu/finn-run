@@ -1,0 +1,418 @@
+{
+  "source_project": "be39c9df-be5e-49b8-ad92-ecb4dee97ef5",
+  "source_revision": 4,
+  "units": "authored metres; game-scale mapping unverified",
+  "dimensions_order": "width X, height Y, depth Z",
+  "assets": [
+    {
+      "asset_id": "Bench_A",
+      "filename": "bench_a.glb",
+      "source_root": "Bench_A_ROOT",
+      "size_bytes": 12812,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 2,
+      "bounds_min": [
+        -2.0,
+        -0.0,
+        -0.52
+      ],
+      "bounds_max": [
+        2.0,
+        2.43,
+        0.5
+      ],
+      "dimensions_xyz": [
+        4.0,
+        2.43,
+        1.02
+      ],
+      "triangles": 176,
+      "mesh_primitives": 4,
+      "mesh_nodes": 4,
+      "integration_status": "requires in-game fit and performance checks"
+    },
+    {
+      "asset_id": "Bridge_A",
+      "filename": "bridge_a.glb",
+      "source_root": "Bridge_A_ROOT",
+      "size_bytes": 58056,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 9,
+      "bounds_min": [
+        -6.2,
+        0.0,
+        -1.95
+      ],
+      "bounds_max": [
+        6.2,
+        8.775,
+        2.14
+      ],
+      "dimensions_xyz": [
+        12.4,
+        8.775,
+        4.09
+      ],
+      "triangles": 802,
+      "mesh_primitives": 24,
+      "mesh_nodes": 24,
+      "integration_status": "requires in-game fit and performance checks",
+      "suggested_initial_uniform_scale": 2.2
+    },
+    {
+      "asset_id": "City_Block_A",
+      "filename": "city_block_a.glb",
+      "source_root": "City_Block_A_ROOT",
+      "size_bytes": 79116,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 7,
+      "bounds_min": [
+        -5.055,
+        0.0,
+        -3.5
+      ],
+      "bounds_max": [
+        5.055,
+        11.7,
+        4.5
+      ],
+      "dimensions_xyz": [
+        10.11,
+        11.7,
+        8.0
+      ],
+      "triangles": 1220,
+      "mesh_primitives": 11,
+      "mesh_nodes": 11,
+      "integration_status": "requires in-game fit and performance checks"
+    },
+    {
+      "asset_id": "City_Block_B",
+      "filename": "city_block_b.glb",
+      "source_root": "City_Block_B_ROOT",
+      "size_bytes": 93544,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 8,
+      "bounds_min": [
+        -5.055,
+        0.0,
+        -3.5
+      ],
+      "bounds_max": [
+        5.055,
+        11.45,
+        4.6
+      ],
+      "dimensions_xyz": [
+        10.11,
+        11.45,
+        8.1
+      ],
+      "triangles": 1472,
+      "mesh_primitives": 11,
+      "mesh_nodes": 11,
+      "integration_status": "requires in-game fit and performance checks"
+    },
+    {
+      "asset_id": "City_Block_C",
+      "filename": "city_block_c.glb",
+      "source_root": "City_Block_C_ROOT",
+      "size_bytes": 82764,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 10,
+      "bounds_min": [
+        -5.055,
+        0.0,
+        -3.5
+      ],
+      "bounds_max": [
+        5.055,
+        12.9,
+        3.95
+      ],
+      "dimensions_xyz": [
+        10.11,
+        12.9,
+        7.45
+      ],
+      "triangles": 1269,
+      "mesh_primitives": 14,
+      "mesh_nodes": 14,
+      "integration_status": "requires in-game fit and performance checks"
+    },
+    {
+      "asset_id": "Fence_A",
+      "filename": "fence_a.glb",
+      "source_root": "Fence_A_ROOT",
+      "size_bytes": 17208,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 2,
+      "bounds_min": [
+        -2.88,
+        0.0,
+        -0.08
+      ],
+      "bounds_max": [
+        2.88,
+        2.5,
+        0.08
+      ],
+      "dimensions_xyz": [
+        5.76,
+        2.5,
+        0.16
+      ],
+      "triangles": 216,
+      "mesh_primitives": 6,
+      "mesh_nodes": 6,
+      "integration_status": "requires in-game fit and performance checks"
+    },
+    {
+      "asset_id": "Palm_A",
+      "filename": "palm_a.glb",
+      "source_root": "Palm_A_ROOT",
+      "size_bytes": 20424,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 3,
+      "bounds_min": [
+        -1.92649,
+        0.0,
+        -2.75955
+      ],
+      "bounds_max": [
+        3.50875,
+        5.084,
+        2.75955
+      ],
+      "dimensions_xyz": [
+        5.43524,
+        5.084,
+        5.51909
+      ],
+      "triangles": 324,
+      "mesh_primitives": 3,
+      "mesh_nodes": 2,
+      "integration_status": "requires in-game fit and performance checks"
+    },
+    {
+      "asset_id": "Station_A",
+      "filename": "station_a.glb",
+      "source_root": "Station_A_ROOT",
+      "size_bytes": 43932,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 8,
+      "bounds_min": [
+        -6.0,
+        0.0,
+        -3.5
+      ],
+      "bounds_max": [
+        6.0,
+        5.875,
+        3.5
+      ],
+      "dimensions_xyz": [
+        12.0,
+        5.875,
+        7.0
+      ],
+      "triangles": 625,
+      "mesh_primitives": 15,
+      "mesh_nodes": 15,
+      "integration_status": "requires in-game fit and performance checks"
+    },
+    {
+      "asset_id": "StreetLamp_A",
+      "filename": "streetlamp_a.glb",
+      "source_root": "StreetLamp_A_ROOT",
+      "size_bytes": 10252,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 2,
+      "bounds_min": [
+        -0.0856,
+        0.0,
+        -0.2
+      ],
+      "bounds_max": [
+        0.995,
+        5.0,
+        0.2
+      ],
+      "dimensions_xyz": [
+        1.0806,
+        5.0,
+        0.4
+      ],
+      "triangles": 124,
+      "mesh_primitives": 3,
+      "mesh_nodes": 3,
+      "integration_status": "requires in-game fit and performance checks"
+    },
+    {
+      "asset_id": "TransitSign_A",
+      "filename": "transit_sign_a.glb",
+      "source_root": "TransitSign_A_ROOT",
+      "size_bytes": 14688,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 4,
+      "bounds_min": [
+        -1.8,
+        0.0,
+        -0.14
+      ],
+      "bounds_max": [
+        1.8,
+        4.5,
+        0.22
+      ],
+      "dimensions_xyz": [
+        3.6,
+        4.5,
+        0.36
+      ],
+      "triangles": 198,
+      "mesh_primitives": 4,
+      "mesh_nodes": 4,
+      "integration_status": "requires in-game fit and performance checks"
+    },
+    {
+      "asset_id": "Tunnel_A",
+      "filename": "tunnel_a.glb",
+      "source_root": "Tunnel_A_ROOT",
+      "size_bytes": 49852,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 7,
+      "bounds_min": [
+        -6.1,
+        0.0,
+        -2.6
+      ],
+      "bounds_max": [
+        6.1,
+        9.0,
+        2.79
+      ],
+      "dimensions_xyz": [
+        12.2,
+        9.0,
+        5.39
+      ],
+      "triangles": 600,
+      "mesh_primitives": 26,
+      "mesh_nodes": 26,
+      "integration_status": "requires in-game fit and performance checks",
+      "suggested_initial_uniform_scale": 2.2
+    },
+    {
+      "asset_id": "UtilityBox_A",
+      "filename": "utility_box_a.glb",
+      "source_root": "UtilityBox_A_ROOT",
+      "size_bytes": 12308,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 4,
+      "bounds_min": [
+        -1.35,
+        0.0,
+        -0.9
+      ],
+      "bounds_max": [
+        1.35,
+        2.6,
+        1.06
+      ],
+      "dimensions_xyz": [
+        2.7,
+        2.6,
+        1.96
+      ],
+      "triangles": 150,
+      "mesh_primitives": 4,
+      "mesh_nodes": 4,
+      "integration_status": "requires in-game fit and performance checks"
+    }
+  ]
+}

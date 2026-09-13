@@ -2,6 +2,8 @@ import Game from '.';
 import * as THREE from 'three';
 import {textureload, load3DModel} from '@/Game/utils/model';
 import {shuffleArray} from '@/Game/utils/random';
+import {ENV_ART, CROSSINGS} from './envart';
+import {Phase2Scenery} from './scenery2';
 // import {OctreeHelper} from 'three/examples/jsm/helpers/OctreeHelper.js';
 export const roadWidth = 15;
 export const roadLength = 330;
@@ -55,8 +57,12 @@ export default class Environment {
         const modelGroup = new THREE.Group();
         // 设置地面
         this.setPlane(modelGroup, z);
-        // 设置左右房屋
-        this.loadmodelAndSize(modelGroup, houseZ, isloadAgain);
+        // 设置左右房屋 — legacy houses, or the Phase 2 kit behind the env flag
+        if (ENV_ART === 'phase2') {
+            Phase2Scenery.get().build(modelGroup, houseZ, roadLength, CROSSINGS);
+        } else {
+            this.loadmodelAndSize(modelGroup, houseZ, isloadAgain);
+        }
         // 设置障碍物
         this.loadObstacle(modelGroup, houseZ);
         this.scene.add(modelGroup);

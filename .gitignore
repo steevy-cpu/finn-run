@@ -7,3 +7,4 @@ dist/
 *.log
 _unused_assets/
 subway-surfers-threejs/photos/
+__pycache__/

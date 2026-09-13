@@ -1,0 +1,25 @@
+{
+  "result": "passed structural and geometry roundtrip checks",
+  "checks": [
+    "GLB v2 headers and byte lengths",
+    "12 standalone module roots",
+    "zero root translation",
+    "base pivots at ground within 0.0001",
+    "no presentation nodes, cameras or lights in standalone assets",
+    "no external buffer or texture dependencies",
+    "all primitive indices in range",
+    "finite position coordinates and attribute counts",
+    "identical measured bounds, triangles and primitive counts before/after serialization"
+  ],
+  "not_tested": [
+    "Khronos validator",
+    "actual runtime GLTFLoader rendering of each standalone file",
+    "gameplay collision, camera or jump clearances",
+    "MediaPipe FPS and latency"
+  ],
+  "material_assignments_verified": 123,
+  "assets": 12,
+  "triangles": 7176,
+  "mesh_primitives": 125,
+  "combined_asset_bytes": 494956
+}
