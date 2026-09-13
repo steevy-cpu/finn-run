@@ -7,6 +7,9 @@ import {EventEmitter} from 'events';
 import Player from './player';
 // @ts-ignore
 import showToast from '../components/Toast/index.js';
+const PHYS_STEP = 1 / 60;
+const GRAVITY = 7.4; // tuned with jumpHight for a ~4-unit, ~0.85s jump
+
 enum Side {
     FRONT,
     BACK,
@@ -62,6 +65,7 @@ export class ControlPlayer extends EventEmitter {
     gameStatus: GAME_STATUS = GAME_STATUS.READY; // 比赛状态
     gameStart: boolean = false;
     jumpQueuedAt: number = -1; // buffered jump input (see doJump)
+    physAcc: number = 0; // fixed-timestep accumulator for vertical physics
     raycasterDown: THREE.Raycaster;
     raycasterFrontDown: THREE.Raycaster;
     raycasterFront: THREE.Raycaster;
@@ -89,7 +93,7 @@ export class ControlPlayer extends EventEmitter {
         // 跑步速度
         this.runVelocity = 20;
         // 跳跃高度
-        this.jumpHight = 3.3;
+        this.jumpHight = 3.15; // launch speed: apex ≈ 4 units, ≈0.85s airtime
         this.gameStart = false;
         this.far = 2.5; // 人物身高
         this.raycasterDown = new THREE.Raycaster();
@@ -247,7 +251,7 @@ export class ControlPlayer extends EventEmitter {
         window.addEventListener('keydown', ControlPlayer.keyHandler);
     }
 // 左右移动控制
-handleLeftRightMove() {
+handleLeftRightMove(delta: number) {
     const targetPosition = this.targetPosition;
     const lastPosition = this.lastPosition;
     if (Math.abs(targetPosition - lastPosition) < 1) {
@@ -269,8 +273,8 @@ handleLeftRightMove() {
                 this.way += 1;
             }
         }
-        // 平滑移动逻辑
-        const moveSpeed = 0.15; // 移动速度
+        // 平滑移动逻辑 — 15% of the remaining distance per 1/60s, frame-rate independent.
+        const moveSpeed = 1 - Math.pow(1 - 0.15, delta * 60);
         const diff = targetPosition - lastPosition;
         if (Math.abs(diff) > 0.0001) {
             this.model.position.x += diff * moveSpeed;
@@ -606,7 +610,7 @@ handleLeftRightMove() {
     }
     update(delta: number) {
         this.changeStatus(delta);
-        this.handleLeftRightMove();
+        this.handleLeftRightMove(delta);
         this.checkPlayerDistance();
         this.collideCheckAll();
         this.tryQueuedJump();
@@ -619,14 +623,26 @@ handleLeftRightMove() {
             this.score += 1200 * delta;
             this.game.emit('gameData', {score: Math.floor(this.score), coin: this.coin, mistake: this.smallMistake});
         }
-        // 重力或者跳跃
-        if (this.isJumping || !this.downCollide) {
-            const ratio = 0.1;
-            this.fallingSpeed += -9.2 * ratio * delta;
-            this.model.position.add(new THREE.Vector3(0, this.fallingSpeed, 0));
+        // 重力或者跳跃 — integrated in fixed 1/60s steps so the jump arc
+        // (height AND airtime) is the same at 30 fps as at 60 fps. Previously
+        // the position advanced once per frame, so a 30 fps game jumped only
+        // half as high and could never clear the low obstacles.
+        // A rising body is never "landed": the ground ray reaches ~1 unit
+        // below the feet, so right after takeoff it still reports ground and
+        // used to zero the jump velocity unless a 50ms grace window had
+        // elapsed — which at 30 fps killed nearly every jump a frame or two in.
+        const airborne = this.isJumping || !this.downCollide || this.fallingSpeed > 0;
+        if (airborne) {
+            this.physAcc += delta;
+            while (this.physAcc >= PHYS_STEP) {
+                this.physAcc -= PHYS_STEP;
+                this.fallingSpeed += -GRAVITY * 0.1 * PHYS_STEP;
+                this.model.position.y += this.fallingSpeed;
+            }
         }
         else {
             this.fallingSpeed = 0;
+            this.physAcc = 0;
         }
     }
 }

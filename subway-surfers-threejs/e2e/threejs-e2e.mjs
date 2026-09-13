@@ -214,6 +214,31 @@ const moves = await evalJs(`
 check("hip rise → 'w' jump", moves.jumpKey === 'w' && moves.falling);
 check("squat → 's' roll", moves.rollKey === 's' && moves.rolling);
 
+// 4b. Jump arc is frame-rate independent and clears the low obstacles
+// (needs > 2.37 units above ground). Measured at full speed and CPU-throttled.
+const measureJump = () => evalJs(`new Promise(res => {
+    const c = window.__cvtest.control(); const y0 = c.model.position.y; const t0 = performance.now();
+    const ys = []; let frames = 0;
+    window.dispatchEvent(new KeyboardEvent('keydown', {key: 'w', bubbles: true}));
+    (function f() {
+        frames++; ys.push(c.model.position.y - y0);
+        const airborne = !c.downCollide || c.fallingSpeed !== 0;
+        if (frames < 240 && (frames < 5 || airborne)) requestAnimationFrame(f);
+        else { const ms = performance.now() - t0; res({apex: Math.max(...ys), airtimeMs: ms, fps: frames / (ms / 1000)}); }
+    })();
+})`);
+await new Promise(r => setTimeout(r, 900));
+const jumpFast = await measureJump();
+await send("Emulation.setCPUThrottlingRate", { rate: 6 });
+await new Promise(r => setTimeout(r, 1200));
+const jumpSlow = await measureJump();
+await send("Emulation.setCPUThrottlingRate", { rate: 1 });
+await new Promise(r => setTimeout(r, 900));
+check(`jump clears low obstacles (apex ${jumpFast.apex.toFixed(2)} > 3.5 at ${jumpFast.fps.toFixed(0)} fps)`, jumpFast.apex > 3.5);
+check(`jump apex frame-rate independent (${jumpSlow.apex.toFixed(2)} at ${jumpSlow.fps.toFixed(0)} fps)`,
+    jumpSlow.fps < jumpFast.fps * 0.8 ? Math.abs(jumpSlow.apex - jumpFast.apex) / jumpFast.apex < 0.2 : true);
+check(`airtime ≈ 0.85s (${(jumpFast.airtimeMs / 1000).toFixed(2)}s)`, jumpFast.airtimeMs > 700 && jumpFast.airtimeMs < 1050);
+
 // 5. Lane changes sync with the game's 'way'.
 // The game legitimately bounces a lane change back if an obstacle occupies the
 // target lane mid-slide, so clear collisions for a deterministic check.
