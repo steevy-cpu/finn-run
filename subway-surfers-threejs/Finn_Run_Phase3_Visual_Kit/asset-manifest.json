@@ -1,0 +1,147 @@
+{
+  "source_project": "c7199c32-c484-481d-b86d-c2e1f60e3414",
+  "source_revision": 2,
+  "dimensions_order": "width X, height Y, depth Z",
+  "assets": [
+    {
+      "asset_id": "Barrier_A",
+      "filename": "barrier_a.glb",
+      "source_root": "Barrier_A_ROOT",
+      "size_bytes": 65604,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 4,
+      "bounds_min": [
+        -2.2,
+        0.0,
+        -0.9
+      ],
+      "bounds_max": [
+        2.2,
+        3.5,
+        0.9
+      ],
+      "dimensions_xyz": [
+        4.4,
+        3.5,
+        1.8
+      ],
+      "triangles": 870,
+      "mesh_primitives": 4,
+      "mesh_nodes": 1,
+      "integration_status": "requires in-game fit and performance checks",
+      "unbatched_source_primitives": 11
+    },
+    {
+      "asset_id": "Maintenance_Crate_A",
+      "filename": "maintenance_crate_a.glb",
+      "source_root": "Maintenance_Crate_A_ROOT",
+      "size_bytes": 69888,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 4,
+      "bounds_min": [
+        -2.11,
+        0.0,
+        -1.27
+      ],
+      "bounds_max": [
+        2.11,
+        3.5,
+        1.4
+      ],
+      "dimensions_xyz": [
+        4.22,
+        3.5,
+        2.67
+      ],
+      "triangles": 944,
+      "mesh_primitives": 4,
+      "mesh_nodes": 1,
+      "integration_status": "requires in-game fit and performance checks",
+      "unbatched_source_primitives": 13
+    },
+    {
+      "asset_id": "Train_A",
+      "filename": "train_a.glb",
+      "source_root": "Train_A_ROOT",
+      "size_bytes": 266796,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 9,
+      "bounds_min": [
+        -2.2905,
+        0.0,
+        -7.8
+      ],
+      "bounds_max": [
+        2.2905,
+        6.5245,
+        8.525
+      ],
+      "dimensions_xyz": [
+        4.581,
+        6.5245,
+        16.325
+      ],
+      "triangles": 3734,
+      "mesh_primitives": 9,
+      "mesh_nodes": 1,
+      "integration_status": "requires in-game fit and performance checks",
+      "unbatched_source_primitives": 61
+    },
+    {
+      "asset_id": "Train_B",
+      "filename": "train_b.glb",
+      "source_root": "Train_B_ROOT",
+      "size_bytes": 268984,
+      "root_translation": [
+        0,
+        0,
+        0
+      ],
+      "up_axis": "Y",
+      "front_axis": "+Z",
+      "pivot": "authored base pivot",
+      "materials": 9,
+      "bounds_min": [
+        -2.2905,
+        0.0,
+        -7.8
+      ],
+      "bounds_max": [
+        2.2905,
+        6.5245,
+        8.525
+      ],
+      "dimensions_xyz": [
+        4.581,
+        6.5245,
+        16.325
+      ],
+      "triangles": 3792,
+      "mesh_primitives": 9,
+      "mesh_nodes": 1,
+      "integration_status": "requires in-game fit and performance checks",
+      "unbatched_source_primitives": 61
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import {textureload, load3DModel} from '@/Game/utils/model';
 import {shuffleArray} from '@/Game/utils/random';
 import {ENV_ART, CROSSINGS} from './envart';
 import {Phase2Scenery} from './scenery2';
+import {PHASE3, Phase3Visuals} from './phase3';
 // import {OctreeHelper} from 'three/examples/jsm/helpers/OctreeHelper.js';
 export const roadWidth = 15;
 export const roadLength = 330;
@@ -182,7 +183,13 @@ export default class Environment {
                     increase = true;
                 }
             }
-            this.cloneModel(train, threeRoad[i], 0, obstacle, Math.PI, obstacalGroup);
+            const trainClone = this.cloneModel(train, threeRoad[i], 0, obstacle, Math.PI, obstacalGroup);
+            if (PHASE3) {
+                // Phase 3: the legacy mesh keeps colliding (rays ignore
+                // visibility); the new art is drawn instead.
+                trainClone.visible = false;
+                Phase3Visuals.get().addTrain(threeRoad[i], obstacle);
+            }
             const plane = new THREE.Mesh(planGeometry1, planMaterial);
             const plane1 = new THREE.Mesh(planGeometry2, planMaterial);
             const plane2 = new THREE.Mesh(planGeometry2, planMaterial);
@@ -229,7 +236,11 @@ export default class Environment {
                     increase1 = true;
                 }
             }
-            this.cloneModel(roadblockScene, threeRoad[j], 0, obstacleBlock, Math.PI, obstacalGroup);
+            const blockClone = this.cloneModel(roadblockScene, threeRoad[j], 0, obstacleBlock, Math.PI, obstacalGroup);
+            if (PHASE3) {
+                blockClone.visible = false;
+                Phase3Visuals.get().addLow(threeRoad[j], obstacleBlock);
+            }
 
             const plane = new THREE.Mesh(planGeometry, planMaterial);
             plane.name = 'kerbStone';
@@ -273,6 +284,9 @@ export default class Environment {
         this.obstacal.push(obstacalGroup);
         this.coin.push(sceneGroup);
         modelGroup.add(obstacalGroup, sceneGroup);
+        if (PHASE3) {
+            Phase3Visuals.get().flush(modelGroup); // visuals only, outside the collision groups
+        }
     }
     async loadmodelAndSize(modelGroup: THREE.Group, houseZ: number, load: boolean) {
         if (load) {

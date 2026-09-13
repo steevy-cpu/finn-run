@@ -1,0 +1,26 @@
+{
+  "result": "passed structural, material and batching checks",
+  "checks": [
+    "GLB v2 byte-length consistency",
+    "four origin-centred ground pivots",
+    "display-only objects, cameras and lights excluded",
+    "triangle counts preserved after transform baking and material batching",
+    "bounds preserved within 0.0001 units",
+    "valid indices and equal attribute lengths",
+    "exported material names match source object assignments",
+    "transformed normals renormalized and mirrored winding handled",
+    "serialization roundtrip preserves bounds and primitive counts"
+  ],
+  "not_tested": [
+    "full Khronos validator",
+    "per-file GLTFLoader render",
+    "actual game collision fit",
+    "MediaPipe FPS/latency in the game"
+  ],
+  "source_mesh_materials_verified": 148,
+  "assets": 4,
+  "triangles": 9340,
+  "source_primitives": 146,
+  "batched_primitives": 26,
+  "combined_asset_bytes": 671272
+}
