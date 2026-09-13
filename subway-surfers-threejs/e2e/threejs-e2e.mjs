@@ -29,9 +29,16 @@ const ws = new WebSocket(await getTarget());
 await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
 let id = 0;
 const pending = new Map();
+const consoleErrors = [];
 ws.onmessage = e => {
     const m = JSON.parse(e.data);
     if (pending.has(m.id)) pending.get(m.id)(m);
+    if (m.method === "Runtime.exceptionThrown") {
+        const d = m.params.exceptionDetails;
+        consoleErrors.push("exception: " + (d.exception?.description || d.text || "").slice(0, 160));
+    } else if (m.method === "Runtime.consoleAPICalled" && m.params.type === "error") {
+        consoleErrors.push("console.error: " + m.params.args.map(a => a.value ?? a.description ?? "").join(" ").slice(0, 160));
+    }
 };
 const send = (method, params = {}) => new Promise(res => {
     const mid = ++id; pending.set(mid, res);
@@ -43,6 +50,7 @@ async function evalJs(expression) {
     return r.result?.result?.value;
 }
 
+await send("Runtime.enable");
 let passed = 0, failed = 0;
 const check = (name, cond) => {
     if (cond) { passed++; console.log(`  ok    ${name}`); }
@@ -724,6 +732,65 @@ const prune = await evalJs(`
 check("road sections tracked", prune.before >= 1);
 check("pruneBehind removes old sections from scene", prune.after === 0 && prune.removed === prune.before && prune.arraysCleared);
 if (prune.after !== 0 || prune.removed !== prune.before || !prune.arraysCleared) console.log("    prune:", JSON.stringify(prune));
+
+// 11. UI mode (Phase 4 redesign is opt-in): the root attribute follows the
+// URL flag, the control-mode switch drives the same setMode/persistence,
+// dialogs return focus to their opener, and hidden dialogs are not focusable.
+const ui = await evalJs(`
+(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const T = window.__cvtest, out = {};
+    const q = new URLSearchParams(location.search).get('ui');
+    out.attr = document.documentElement.dataset.ui;
+    out.attrMatchesFlag = out.attr === (q === 'phase4' ? 'phase4' : 'original');
+    // Phase-4-only elements (.p4) are display:none in the original UI, so
+    // they have no box (offsetParent null) and cannot be tabbed to.
+    out.phase4Hidden = out.attr === 'phase4'
+        ? document.getElementById('cv-modes').getClientRects().length > 0
+        : [...document.querySelectorAll('.p4')].every(el => el.getClientRects().length === 0);
+    // Control-mode switch: locked while a run is live, then ↔ setMode.
+    const ctl = T.control();
+    const live = ctl.gameStart === true && ctl.gameStatus === 'start';
+    out.lockedDuringRun = !live || (document.getElementById('cv-mode-hands').disabled
+        && document.getElementById('cv-mode-pose').disabled);
+    if (live) { document.getElementById('cv-stop').click(); await sleep(100); document.getElementById('cv-board-close').click(); }
+    out.unlockedAfterRun = !document.getElementById('cv-mode-hands').disabled;
+    document.getElementById('cv-mode-hands').click();
+    out.switchToHands = T.mode === 'hands' && localStorage.getItem('cv-mode') === 'hands'
+        && document.getElementById('cv-mode-hands').getAttribute('aria-pressed') === 'true'
+        && document.getElementById('cv-mode-pose').getAttribute('aria-pressed') === 'false';
+    document.getElementById('cv-mode-pose').click();
+    out.switchToPose = T.mode === 'pose' && localStorage.getItem('cv-mode') === 'pose'
+        && document.getElementById('cv-mode-pose').getAttribute('aria-pressed') === 'true';
+    // Focus: New Game → dialog focuses the input; Escape returns focus to New Game.
+    const ng = document.getElementById('cv-newgame');
+    ng.focus(); ng.click(); await sleep(50);
+    out.inputFocused = document.activeElement === document.getElementById('cv-name-input');
+    document.getElementById('cv-name-input').dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+    out.focusReturned = document.getElementById('cv-name').hidden && document.activeElement === ng;
+    // Hidden dialogs: not rendered, so nothing inside them can take focus.
+    document.getElementById('cv-name-input').focus();
+    out.hiddenNotFocusable = document.getElementById('cv-name-input').offsetParent === null
+        && document.activeElement !== document.getElementById('cv-name-input');
+    // Dialog semantics.
+    out.dialogAria = ['cv-name', 'cv-board'].every(id => {
+        const d = document.getElementById(id);
+        return d.getAttribute('role') === 'dialog' && document.getElementById(d.getAttribute('aria-labelledby'));
+    });
+    // HUD contract: the values still come from the game's own data event.
+    out.hudStats = document.querySelectorAll('.score_panel .stat').length === 3;
+    return JSON.stringify(out);
+})()
+`).then(JSON.parse);
+check("ui: root data-ui follows the ?ui flag (default original)", ui.attrMatchesFlag);
+check("ui: phase4-only controls hidden in the original UI", ui.phase4Hidden);
+check("ui: control-mode switch locked during a live run, free after", ui.lockedDuringRun && ui.unlockedAfterRun);
+check("ui: Body/Hand Control switch drives setMode + persists", ui.switchToHands && ui.switchToPose);
+check("ui: New Game dialog focuses input, Escape returns focus", ui.inputFocused && ui.focusReturned);
+check("ui: hidden dialog controls are not focusable", ui.hiddenNotFocusable);
+check("ui: dialogs are labelled role=dialog", ui.dialogAria);
+check("no uncaught exceptions / console errors during the run", consoleErrors.length === 0);
+if (consoleErrors.length) console.log("    errors:", consoleErrors.slice(0, 5).join(" | "));
 
 const shot = await send("Page.captureScreenshot", { format: "png" });
 if (shot.result?.data && process.argv[3]) {

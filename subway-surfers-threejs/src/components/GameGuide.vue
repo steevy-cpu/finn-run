@@ -1,5 +1,9 @@
 <template>
   <div v-if="showMask" class="game-mask">
+      <div class="p4 game-brand">
+          <div class="game-title">FINN RUN</div>
+          <div class="game-tagline">Your moves. Finn runs.</div>
+      </div>
       <div class="message">Press <span class="key">{{ textCompute.key }}</span> {{ textCompute.text }}</div>
   </div>
 </template>
@@ -43,6 +47,10 @@ const textCompute = computed(() => {
   font-size: 24px;
   color: white;
   text-align: center;
+}
+
+.p4 {
+  display: none;
 }
 
 .key {

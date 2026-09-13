@@ -39,3 +39,21 @@ export const FINN_POLISH: FinnPolishMode = (() => {
 export const CROSSINGS = (() => {
     try { return new URLSearchParams(location.search).get('crossings') === '1'; } catch { return false; }
 })();
+
+// Phase 4 interface redesign: ?ui=phase4|original (persisted in cv-ui).
+// Default original until a look is chosen. Applied as <html data-ui="…">
+// so the redesign is a scoped stylesheet over the SAME DOM — nothing else
+// (game state, other flags, settings) depends on it.
+export type UiMode = 'original' | 'phase4';
+export const UI_MODE: UiMode = (() => {
+    try {
+        const q = new URLSearchParams(location.search).get('ui');
+        if (q !== null) {
+            const m: UiMode = q === 'phase4' ? 'phase4' : 'original';
+            localStorage.setItem('cv-ui', m);
+            return m;
+        }
+        if (localStorage.getItem('cv-ui') === 'phase4') return 'phase4';
+    } catch {}
+    return 'original';
+})();

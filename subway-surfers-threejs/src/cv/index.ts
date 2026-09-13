@@ -131,21 +131,40 @@ style.textContent = `
     background: none; border: 0; color: #8ab4f8; font-size: 13px;
     cursor: pointer; padding: 0 18px 12px; text-align: left;
 }
+/* Phase 4-only elements (brand strip, control-mode switch, section titles):
+   revealed by assets/phase4.css under <html data-ui="phase4">. */
+.p4 { display: none; }
 `;
 document.head.appendChild(style);
 
 const panel = document.createElement('div');
 panel.id = 'cv-panel';
 panel.innerHTML = `
+    <div id="cv-head" class="p4">
+        <div id="cv-brand">
+            <span id="cv-brand-title">FINN RUN</span>
+            <span id="cv-brand-tag">Your moves. Finn runs.</span>
+        </div>
+        <div id="cv-modes" role="group" aria-label="Control mode">
+            <button id="cv-mode-pose" class="cv-seg" type="button" aria-pressed="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="4.5" r="2.5"/><path d="M12 8v6m0 0-3.5 7M12 14l3.5 7M6 11l6-2 6 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Body Control
+            </button>
+            <button id="cv-mode-hands" class="cv-seg" type="button" aria-pressed="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V5.5a1.5 1.5 0 0 1 3 0V11m0-7a1.5 1.5 0 0 1 3 0v7m0-5a1.5 1.5 0 0 1 3 0v7m0-3.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.2a6 6 0 0 1-5-2.7L4 13.5a1.6 1.6 0 0 1 2.6-1.8L7 12.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Hand Control
+            </button>
+        </div>
+    </div>
     <div id="cv-stage">
         <div id="cv-fit">
             <video id="cv-video" autoplay playsinline muted></video>
             <canvas id="cv-overlay"></canvas>
             <div id="cv-countdown"></div>
         </div>
+        <div id="cv-stats"></div>
+        <div id="cv-guide"></div>
     </div>
-    <div id="cv-stats"></div>
-    <div id="cv-guide"></div>
     <div id="cv-bar">
         <button id="cv-newgame" class="cv-btn" disabled>New Game</button>
         <button id="cv-stop" class="cv-btn" title="End the run and reveal the Top 3">Stop</button>
@@ -160,6 +179,7 @@ panel.innerHTML = `
     </div>
     <button id="cv-tuning-toggle">Sensitivity settings ▾</button>
     <div id="cv-tuning">
+        <div class="cv-sec p4">Control &amp; sensitivity</div>
         <label>Step size
             <input type="range" id="cv-lane" min="0.15" max="0.60" step="0.01">
             <span class="val" id="cv-lane-val"></span>
@@ -168,6 +188,7 @@ panel.innerHTML = `
             <input type="range" id="cv-band" min="0.16" max="0.60" step="0.02">
             <span class="val" id="cv-band-val"></span>
         </label>
+        <div class="cv-sec p4">Effects</div>
         <label class="cv-check"><input type="checkbox" id="cv-fx" checked> Effects (coin sparkle, jump &amp; landing dust)</label>
         <label class="cv-check"><input type="checkbox" id="cv-fx-reduced"> Reduced effects (quieter ring, no dust)</label>
     </div>
@@ -177,9 +198,10 @@ document.body.appendChild(panel);
 // Overlays on the GAME pane (left half): nickname prompt + leaderboard.
 const gameOverlays = document.createElement('div');
 gameOverlays.innerHTML = `
-    <div id="cv-name" class="cv-modal" hidden>
+    <div id="cv-name" class="cv-modal" hidden role="dialog" aria-modal="true" aria-labelledby="cv-name-title">
         <div class="cv-card">
-            <h2>New Game</h2>
+            <div class="cv-eyebrow p4">Finn Run</div>
+            <h2 id="cv-name-title">New Game</h2>
             <p>Enter your nickname for the leaderboard</p>
             <input id="cv-name-input" maxlength="16" placeholder="Nickname" autocomplete="off" spellcheck="false">
             <label class="cv-check"><input type="checkbox" id="cv-name-hands"> Seated / hands mode (wheelchair-friendly): both hands steer</label>
@@ -189,8 +211,9 @@ gameOverlays.innerHTML = `
             </div>
         </div>
     </div>
-    <div id="cv-board" class="cv-modal" hidden>
+    <div id="cv-board" class="cv-modal" hidden role="dialog" aria-modal="true" aria-labelledby="cv-board-title">
         <div class="cv-card">
+            <div class="cv-eyebrow p4">Finn Run</div>
             <h2 id="cv-board-title">Top 3</h2>
             <ol id="cv-board-list"></ol>
             <p id="cv-board-you"></p>
@@ -326,6 +349,18 @@ function recordRun(name: string, score: number, coins: number): {rank: number; b
     const rank = entries.findIndex(e => e.name.trim().toLowerCase() === key) + 1;
     return {rank, best: entries[rank - 1].score, isBest};
 }
+// Modal focus: remember the control that opened a dialog and hand focus
+// back to it when the dialog closes (if it is still on screen).
+const openers: Record<string, HTMLElement | null> = {};
+function rememberOpener(id: string) {
+    const el = document.activeElement as HTMLElement | null;
+    openers[id] = el && el !== document.body && !$(id).contains(el) ? el : null;
+}
+function restoreOpener(id: string) {
+    const el = openers[id];
+    openers[id] = null;
+    if (el && el.isConnected && !(el as HTMLButtonElement).disabled && el.offsetParent !== null) el.focus();
+}
 function showBoard(you?: {name: string; score: number; rank: number; best: number; isBest: boolean}) {
     const top = loadBoard().slice(0, 3);
     const medals = ['🥇', '🥈', '🥉'];
@@ -341,9 +376,16 @@ function showBoard(you?: {name: string; score: number; rank: number; best: numbe
             ? `${you.name}: ${you.score.toLocaleString()} points — new personal best! Rank #${you.rank}`
             : `${you.name}: ${you.score.toLocaleString()} points (best ${you.best.toLocaleString()}) — rank #${you.rank}`)
         : '';
-    ($('cv-board') as HTMLElement).hidden = false;
+    const board = $('cv-board') as HTMLElement;
+    if (board.hidden) rememberOpener('cv-board');
+    board.hidden = false;
 }
-function hideBoard() { ($('cv-board') as HTMLElement).hidden = true; }
+function hideBoard() {
+    const board = $('cv-board') as HTMLElement;
+    if (board.hidden) return;
+    board.hidden = true;
+    restoreOpener('cv-board');
+}
 function escapeHtml(s: string) {
     return s.replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c] as string));
 }
@@ -354,15 +396,25 @@ function openNamePrompt() {
     const input = $('cv-name-input') as HTMLInputElement;
     input.value = playerName;
     ($('cv-name-hands') as HTMLInputElement).checked = mode === 'hands';
-    ($('cv-name') as HTMLElement).hidden = false;
+    const dlg = $('cv-name') as HTMLElement;
+    if (dlg.hidden) rememberOpener('cv-name');
+    dlg.hidden = false;
     setTimeout(() => { input.focus(); input.select(); }, 0);
 }
-function closeNamePrompt() { ($('cv-name') as HTMLElement).hidden = true; }
+// Cancel/Escape hands focus back to the opener; a submitted start does not
+// (the run takes over and no control should hold focus during play).
+function closeNamePrompt(returnFocus = true) {
+    const dlg = $('cv-name') as HTMLElement;
+    if (dlg.hidden) return;
+    dlg.hidden = true;
+    if (returnFocus) restoreOpener('cv-name'); else openers['cv-name'] = null;
+}
 function submitName() {
     const input = $('cv-name-input') as HTMLInputElement;
     playerName = input.value.trim().slice(0, 16) || 'Player';
     try { localStorage.setItem(NAME_KEY, playerName); } catch {}
-    closeNamePrompt();
+    closeNamePrompt(false);
+    (document.activeElement as HTMLElement | null)?.blur?.();
     captureFace(playerName); // fire-and-forget snapshot for the photos/ folder
     setMode(($('cv-name-hands') as HTMLInputElement).checked ? 'hands' : 'pose');
     pendingGame = true;
@@ -483,6 +535,7 @@ function hookCollisionSound(ctl: any) {
 // started/restarted from the keyboard (p/r) too, not just our buttons.
 const game = new (Game as any)();
 game.on('gameStatus', (status: string) => {
+    setTimeout(syncModeUI, 0); // after the flags below settle
     if (status === 'start') {
         gameStarted = true;
         gameEnded = false;
@@ -526,7 +579,20 @@ $('cv-newgame').addEventListener('click', openNamePrompt);
 $('cv-board-newgame').addEventListener('click', openNamePrompt);
 $('cv-board-close').addEventListener('click', hideBoard);
 $('cv-name-start').addEventListener('click', submitName);
-$('cv-name-cancel').addEventListener('click', closeNamePrompt);
+$('cv-name-cancel').addEventListener('click', () => closeNamePrompt());
+// Body Control / Hand Control switch (Phase 4 panel; same setMode as the
+// New Game dialog's checkbox). Locked while a run is live.
+$('cv-mode-pose').addEventListener('click', () => setMode('pose'));
+$('cv-mode-hands').addEventListener('click', () => setMode('hands'));
+function syncModeUI() {
+    const live = gameStarted && !gameEnded;
+    for (const [id, m] of [['cv-mode-pose', 'pose'], ['cv-mode-hands', 'hands']] as const) {
+        const b = $(id) as HTMLButtonElement;
+        b.setAttribute('aria-pressed', String(mode === m));
+        b.disabled = live;
+    }
+}
+syncModeUI();
 // Typing a nickname must not drive the game (p/r/w/a/s/d/f are global keys).
 $('cv-name-input').addEventListener('keydown', e => {
     e.stopPropagation();
@@ -562,6 +628,7 @@ function setMode(m: Mode) {
     engine.anchor = m;
     layoutStage();
     (window as any).__cvtest && ((window as any).__cvtest.interpreter = interpreter);
+    syncModeUI();
     if (restoreCalibration()) {
         $('cv-calibrate').textContent = 'Re-calibrate';
     } else {

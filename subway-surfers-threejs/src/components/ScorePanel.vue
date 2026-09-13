@@ -5,13 +5,13 @@
               <span class="stat-label">Score</span>
               <span class="stat-value">{{ score }}</span>
           </div>
-          <div class="stat">
+          <div class="stat stat-coins">
               <span class="stat-label">Coins</span>
-              <span class="stat-value">{{ coin }}</span>
+              <span class="stat-value"><svg class="p4 hud-coin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#FFD45A" stroke="#B8860B" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="#B8860B" stroke-width="1.5"/></svg>{{ coin }}</span>
           </div>
-          <div class="stat">
+          <div class="stat stat-mistakes">
               <span class="stat-label">Mistakes</span>
-              <span class="stat-value" :class="{ danger: mistake > 0 }">{{ mistake }}</span>
+              <span class="stat-value" :class="{ danger: mistake > 0 }">{{ mistake }}<span class="p4 hud-pips" aria-hidden="true"><i v-for="n in MAX_MISTAKES" :key="n" :class="{ hit: mistake >= n }"></i></span></span>
           </div>
       </div>
   </div>
@@ -19,6 +19,9 @@
 
 <script setup lang="ts">
 import {defineProps} from 'vue';
+// The run ends at the second mistake (ControlPlayer.checkGameStatus), so
+// the HUD shows two pips against that real limit.
+const MAX_MISTAKES = 2;
 const props = defineProps({
   score: {type: Number, default: 0},
   coin: {type: Number, default: 0},
@@ -72,5 +75,11 @@ const props = defineProps({
 
 .stat-value.danger {
   color: #ff5252;
+}
+
+/* Phase 4-only decorations: revealed by assets/phase4.css when
+   <html data-ui="phase4">; invisible in the original UI. */
+.p4 {
+  display: none;
 }
 </style>

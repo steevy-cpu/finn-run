@@ -1,6 +1,7 @@
 <template>
   <div>
     <div v-if="!isReady" class="loading">
+      <div class="p4 loading-brand">FINN RUN</div>
       <div class="loading-anima aaa">
         <div></div>
         <div></div>
@@ -72,6 +73,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.p4 {
+  display: none;
+}
+
 .loading {
   position: fixed;
   height: 100vh;
