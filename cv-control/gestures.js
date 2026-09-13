@@ -17,6 +17,7 @@
 
 const L_SHOULDER = 11, R_SHOULDER = 12, L_HIP = 23, R_HIP = 24;
 const L_ANKLE = 27, R_ANKLE = 28;
+const L_WRIST = 15, R_WRIST = 16;
 
 // ===== TUNING KNOBS =====
 // All distances are in TORSO LENGTHS (shoulder-center → hip-center), so the
@@ -289,6 +290,165 @@ export class GestureInterpreter {
         } else if (offsetY > -o.duckRearm) {
             this.ducking = false;
             this._duckEndAt = nowMs;
+            events.push({ type: "duck_end" });
+        }
+
+        this.debug.zone = this.zone;
+        this.debug.lane = this.lane;
+        this.debug.ducking = this.ducking;
+        return events;
+    }
+}
+
+
+// ===== Seated / hands mode (accessibility) =====
+// Same command box, driven by the hands instead of the hips: the centroid is
+// the midpoint of both wrists; both hands up = jump, both down = squat, the
+// right hand reaching out right = right lane, the left hand out left = left
+// lane, both hands back near their rest position = center. Distances are in
+// SHOULDER WIDTHS (seated players' hips may be hidden), so bigger defaults.
+export const HANDS_DEFAULTS = applyBand({
+    ...DEFAULTS,
+    laneEnter: 0.55,      // hand reach (shoulder widths) to enter a lane
+    laneExit: 0.36,
+    adaptRate: 0.05,
+}, 0.60, 0.25);           // jump at +0.15, squat at -0.45 shoulder widths
+
+function handsCore(landmarks, minVisibility, aspect = 1) {
+    const pts = [landmarks[L_SHOULDER], landmarks[R_SHOULDER], landmarks[L_WRIST], landmarks[R_WRIST]];
+    if (pts.some(p => !p)) return null;
+    if (pts.some(p => p.visibility !== undefined && p.visibility < minVisibility)) return null;
+    const scale = Math.abs(landmarks[L_SHOULDER].x - landmarks[R_SHOULDER].x) * aspect;
+    if (scale < 1e-6) return null;
+    const lw = landmarks[L_WRIST], rw = landmarks[R_WRIST];
+    return { cx: (lw.x + rw.x) / 2, cy: (lw.y + rw.y) / 2, lx: lw.x, rx: rw.x, scale };
+}
+
+export class HandsInterpreter {
+    constructor(options = {}) {
+        this.mode = "hands";
+        this.opts = { ...HANDS_DEFAULTS, ...options };
+        this.calibrated = false;
+        // Same shape as the pose calib so the guide drawing can share code:
+        // hipX/hipY = hands centroid, torso = shoulder width, lx/rx = wrist rests.
+        this.calib = null;
+        this._calibSamples = null;
+        this.zone = 0;
+        this.lane = 1;
+        this.jumpArmed = true;
+        this.ducking = false;
+        this._lastJumpAt = -Infinity;
+        this._belowDuckSince = -1;
+        this.debug = {
+            tracking: false, offsetX: 0, offsetY: 0,
+            zone: 0, lane: 1, ducking: false, calibrating: false,
+            calibProgress: 0, ankleRise: null,
+        };
+    }
+
+    startCalibration() {
+        this._calibSamples = [];
+        this.debug.calibrating = true;
+    }
+
+    update(landmarks, nowMs) {
+        const events = [];
+        const o = this.opts;
+        const core = landmarks ? handsCore(landmarks, o.minVisibility, o.aspect) : null;
+        this.debug.tracking = !!core;
+        if (!core) return events;
+
+        if (this._calibSamples) {
+            const sample = { cx: core.cx, cy: core.cy, lx: core.lx, rx: core.rx, scale: core.scale };
+            if (this._calibSamples.length > 0) {
+                const medS = median(this._calibSamples.map(v => v.scale));
+                const tol = o.calibStillTol * medS;
+                if (Math.abs(sample.cx - median(this._calibSamples.map(v => v.cx))) * o.aspect > tol ||
+                    Math.abs(sample.cy - median(this._calibSamples.map(v => v.cy))) > tol) {
+                    this._calibSamples = [];
+                }
+            }
+            this._calibSamples.push(sample);
+            this.debug.calibProgress = this._calibSamples.length / o.calibFrames;
+            if (this._calibSamples.length >= o.calibFrames) {
+                const med = key => median(this._calibSamples.map(v => v[key]));
+                this.calib = { hipX: med("cx"), hipY: med("cy"), torso: med("scale"),
+                               lx: med("lx"), rx: med("rx"), ankleY: null };
+                this._calibSamples = null;
+                this.calibrated = true;
+                this.debug.calibrating = false;
+                this.zone = 0; this.lane = 1;
+                this.jumpArmed = true; this.ducking = false;
+                this._belowDuckSince = -1;
+                events.push({ type: "calibrated" });
+            }
+            return events;
+        }
+        if (!this.calibrated) return events;
+
+        const c = this.calib;
+        // Both hands up = positive. Right hand reaching to the player's right
+        // (raw x decreases) = dR positive; left hand to their left = dL positive.
+        const offsetY = (c.hipY - core.cy) / c.torso;
+        const dR = (c.rx - core.rx) * o.aspect / c.torso;
+        const dL = (core.lx - c.lx) * o.aspect / c.torso;
+        this.debug.offsetY = offsetY;
+        this.debug.offsetX = dR >= dL ? dR : -dL;
+
+        // Slow re-centering while the hands rest near their calibrated spot.
+        const k = o.adaptRate;
+        const restX = Math.abs(dR) < o.laneExit * 0.5 && Math.abs(dL) < o.laneExit * 0.5;
+        if (Math.abs(offsetY) < o.jumpFire * 0.5 && restX && this.zone === 0) {
+            c.hipY += (core.cy - c.hipY) * k;
+            c.hipX += (core.cx - c.hipX) * k;
+            c.lx += (core.lx - c.lx) * k;
+            c.rx += (core.rx - c.rx) * k;
+            c.torso += (core.scale - c.torso) * k;
+        }
+
+        // --- Lanes: one hand reaching out, with hysteresis ---
+        let zone = this.zone;
+        if (zone === 0) {
+            if (dR > o.laneEnter && dR >= dL) zone = 1;
+            else if (dL > o.laneEnter) zone = -1;
+        } else if (zone === 1) {
+            if (dR < o.laneExit) zone = dL > o.laneEnter ? -1 : 0;
+        } else if (zone === -1) {
+            if (dL < o.laneExit) zone = dR > o.laneEnter ? 1 : 0;
+        }
+        if (zone !== this.zone) {
+            const from = this.lane;
+            this.zone = zone;
+            this.lane = zone + 1;
+            events.push({ type: "lane", from, to: this.lane });
+        }
+
+        // --- Jump: both hands up (edge-triggered, rearm + cooldown) ---
+        if (!this.ducking) {
+            if (this.jumpArmed && offsetY > o.jumpFire && nowMs - this._lastJumpAt > o.jumpCooldownMs) {
+                this.jumpArmed = false;
+                this._lastJumpAt = nowMs;
+                this._belowDuckSince = -1;
+                events.push({ type: "jump" });
+            } else if (!this.jumpArmed && offsetY < o.jumpRearm) {
+                this.jumpArmed = true;
+            }
+        }
+
+        // --- Squat: both hands down, held briefly ---
+        if (!this.ducking) {
+            if (offsetY < -o.duckFire) {
+                if (this._belowDuckSince < 0) this._belowDuckSince = nowMs;
+                if (nowMs - this._belowDuckSince >= o.duckHoldMs) {
+                    this.ducking = true;
+                    this._belowDuckSince = -1;
+                    events.push({ type: "duck" });
+                }
+            } else {
+                this._belowDuckSince = -1;
+            }
+        } else if (offsetY > -o.duckRearm) {
+            this.ducking = false;
             events.push({ type: "duck_end" });
         }
 

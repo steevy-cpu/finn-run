@@ -1,6 +1,6 @@
 // Unit tests for GestureInterpreter using synthetic landmark streams.
 // Run: node cv-control/gestures.test.mjs
-import { GestureInterpreter, DEFAULTS, applyBand } from "./gestures.js";
+import { GestureInterpreter, HandsInterpreter, HANDS_DEFAULTS, DEFAULTS, applyBand } from "./gestures.js";
 
 let passed = 0, failed = 0;
 function check(name, cond) {
@@ -296,6 +296,73 @@ console.log("vertical band ratio");
     const g = new GestureInterpreter();
     applyBand(g.opts, 0.40);
     check("applyBand rescales both lines", Math.abs(g.opts.jumpFire - 0.10) < 1e-9 && Math.abs(g.opts.duckFire - 0.30) < 1e-9);
+}
+
+console.log("hands mode (seated)");
+// Shoulders 0.2 apart (aspect 1 → scale 0.2). Wrists at rest: left at cx+0.15,
+// right at cx-0.15, both at cy. Hand offsets are in shoulder widths.
+const hands = (cx, cy, {lx = cx + 0.15, rx = cx - 0.15, ly = cy, ry = cy} = {}) => {
+    const lm = new Array(33).fill(null).map(() => ({ x: 0.5, y: 0.5, visibility: 1 }));
+    lm[11] = { x: cx + 0.10, y: cy - 0.25, visibility: 1 };
+    lm[12] = { x: cx - 0.10, y: cy - 0.25, visibility: 1 };
+    lm[15] = { x: lx, y: ly, visibility: 1 };
+    lm[16] = { x: rx, y: ry, visibility: 1 };
+    return lm;
+};
+function freshHands() {
+    const g = new HandsInterpreter();
+    g.startCalibration();
+    let t = 0;
+    for (let i = 0; i < HANDS_DEFAULTS.calibFrames; i++) g.update(hands(0.5, 0.6), (t += 33));
+    return { g, t };
+}
+{
+    const { g } = freshHands();
+    check("hands: calibrates on the wrists centroid", g.calibrated && Math.abs(g.calib.hipX - 0.5) < 1e-9
+        && Math.abs(g.calib.hipY - 0.6) < 1e-9 && Math.abs(g.calib.torso - 0.2) < 1e-9);
+    check("hands: defaults keep 25/75 band", Math.abs(HANDS_DEFAULTS.jumpFire / HANDS_DEFAULTS.vertBand - 0.25) < 1e-9);
+}
+{
+    const { g, t } = freshHands();
+    // Both hands up 0.05 = 0.25 shoulder widths > jumpFire 0.15.
+    let evs = g.update(hands(0.5, 0.6, { ly: 0.55, ry: 0.55 }), t + 33);
+    check("hands: both hands up → jump", evs.length === 1 && evs[0].type === "jump");
+    evs = g.update(hands(0.5, 0.6, { ly: 0.54, ry: 0.54 }), t + 66);
+    check("hands: held up → no repeat", evs.length === 0);
+    g.update(hands(0.5, 0.6), t + 99);
+    // Only one hand up: centroid rises 0.125 widths < 0.15 → no jump.
+    evs = g.update(hands(0.5, 0.6, { ly: 0.55 }), t + 700);
+    check("hands: one hand up is not a jump", evs.length === 0);
+}
+{
+    const { g, t } = freshHands();
+    // Both hands down 0.10 = 0.5 widths > duckFire 0.45, held.
+    let evs = [];
+    for (let i = 1; i <= 5; i++) evs = evs.concat(g.update(hands(0.5, 0.6, { ly: 0.70, ry: 0.70 }), t + 33 * i));
+    check("hands: both hands down (held) → squat", evs.filter(e => e.type === "duck").length === 1 && g.ducking);
+    evs = g.update(hands(0.5, 0.6), t + 600);
+    check("hands: hands back → squat ends", evs.some(e => e.type === "duck_end") && !g.ducking);
+}
+{
+    const { g, t } = freshHands();
+    // Right hand (landmark 16, raw x decreasing) reaches out 0.15 = 0.75 widths.
+    let evs = g.update(hands(0.5, 0.6, { rx: 0.20 }), t + 33);
+    check("hands: right hand out → right lane", evs.length === 1 && evs[0].type === "lane" && evs[0].to === 2);
+    evs = g.update(hands(0.5, 0.6), t + 66);
+    check("hands: hand back → center", evs.length === 1 && evs[0].to === 1);
+    evs = g.update(hands(0.5, 0.6, { lx: 0.80 }), t + 99);
+    check("hands: left hand out → left lane", evs.length === 1 && evs[0].to === 0);
+    // A lane reach does not move the vertical centroid enough to jump/squat.
+    check("hands: reaching sideways is not a jump", !evs.some(e => e.type === "jump"));
+}
+{
+    const g = new HandsInterpreter();
+    const evs = g.update(hands(0.5, 0.6), 100);
+    check("hands: no events before calibration", evs.length === 0);
+    const noHands = hands(0.5, 0.6); noHands[16].visibility = 0.1;
+    g.startCalibration();
+    g.update(noHands, 133);
+    check("hands: hidden hand = no tracking", !g.debug.tracking);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

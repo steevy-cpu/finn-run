@@ -44,6 +44,7 @@ const SMOOTH = 0.35; // slerp factor per frame toward the target pose
 
 export class ArmMimic {
     enabled = true;
+    armsOnly = false; // seated mode: hips/legs may be hidden — never drive legs
     private bones = new Map<string, THREE.Bone>();
     private restDirs = new Map<string, THREE.Vector3>();
     private model: THREE.Object3D | null = null;
@@ -84,7 +85,7 @@ export class ArmMimic {
         model.updateWorldMatrix(true, true);
 
         const mirrored = FULL_BODY_STATUSES.has(status); // facing the camera
-        const chains = mirrored ? ALL_CHAIN : ARM_CHAIN;
+        const chains = mirrored && !this.armsOnly ? ALL_CHAIN : ARM_CHAIN;
         for (const {bone: chainBone, a, b} of chains) {
             const boneName = mirrored ? swapSide(chainBone) : chainBone;
             const bone = this.bones.get(boneName);

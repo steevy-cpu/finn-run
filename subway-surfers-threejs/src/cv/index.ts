@@ -4,7 +4,7 @@
 // @ts-ignore — plain JS module
 import {PoseEngine} from './pose.js';
 // @ts-ignore — plain JS module
-import {GestureInterpreter, applyBand} from './gestures.js';
+import {GestureInterpreter, HandsInterpreter, applyBand} from './gestures.js';
 import {ArmMimic} from './mimic';
 import Player from '@/Game/player';
 import Game from '@/Game';
@@ -110,6 +110,8 @@ style.textContent = `
 #cv-board-list li .score { font-variant-numeric: tabular-nums; }
 #cv-board-list li.you { outline: 2px solid #7c4dff; }
 #cv-board-you { font-size: 16px; color: #e8eaed; }
+.cv-check { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; color: #c5cad1; cursor: pointer; }
+.cv-check input { width: 18px; height: 18px; accent-color: #7c4dff; }
 #cv-fullscreen {
     background: #2a2f36; padding: 12px 14px; font-size: 18px; line-height: 1;
 }
@@ -178,6 +180,7 @@ gameOverlays.innerHTML = `
             <h2>New Game</h2>
             <p>Enter your nickname for the leaderboard</p>
             <input id="cv-name-input" maxlength="16" placeholder="Nickname" autocomplete="off" spellcheck="false">
+            <label class="cv-check"><input type="checkbox" id="cv-name-hands"> Seated / hands mode (wheelchair-friendly): both hands steer</label>
             <div class="cv-card-actions">
                 <button id="cv-name-cancel" class="cv-btn cv-btn-secondary">Cancel</button>
                 <button id="cv-name-start" class="cv-btn">Start</button>
@@ -232,7 +235,13 @@ function setStatus(text: string) {
 }
 
 // ---------- Game wiring ----------
-const interpreter = new GestureInterpreter();
+// Control mode: 'pose' (standing, hips) or 'hands' (seated / wheelchair:
+// both hands are the centroid). Remembered across sessions.
+type Mode = 'pose' | 'hands';
+const MODE_KEY = 'cv-mode';
+let mode: Mode = 'pose';
+try { if (localStorage.getItem(MODE_KEY) === 'hands') mode = 'hands'; } catch {}
+let interpreter: any = mode === 'hands' ? new HandsInterpreter() : new GestureInterpreter();
 const mimic = new ArmMimic();
 let latestLandmarks: any = null;
 let landmarksAt = 0;
@@ -242,16 +251,17 @@ let gameStarted = false;
 let gameEnded = false;
 
 const CALIB_KEY = 'cv-calibration';
+const calibKey = () => `${CALIB_KEY}-${mode}`;
 function saveCalibration() {
     try {
-        localStorage.setItem(CALIB_KEY, JSON.stringify(
+        localStorage.setItem(calibKey(), JSON.stringify(
             {...interpreter.calib, aspect: interpreter.opts.aspect}
         ));
     } catch {}
 }
 function restoreCalibration(): boolean {
     try {
-        const saved = JSON.parse(localStorage.getItem(CALIB_KEY) || 'null');
+        const saved = JSON.parse(localStorage.getItem(calibKey()) || 'null');
         // A calibration made with a different camera format is geometrically
         // wrong (its units don't match) — discard it instead of restoring.
         if (saved && saved.torso > 0
@@ -259,6 +269,7 @@ function restoreCalibration(): boolean {
             interpreter.calib = {
                 hipX: saved.hipX, hipY: saved.hipY, torso: saved.torso,
                 ankleY: saved.ankleY ?? null,
+                ...(mode === 'hands' ? {lx: saved.lx, rx: saved.rx} : {}),
             };
             interpreter.calibrated = true;
             return true;
@@ -337,6 +348,7 @@ function openNamePrompt() {
     hideBoard();
     const input = $('cv-name-input') as HTMLInputElement;
     input.value = playerName;
+    ($('cv-name-hands') as HTMLInputElement).checked = mode === 'hands';
     ($('cv-name') as HTMLElement).hidden = false;
     setTimeout(() => { input.focus(); input.select(); }, 0);
 }
@@ -347,6 +359,7 @@ function submitName() {
     try { localStorage.setItem(NAME_KEY, playerName); } catch {}
     closeNamePrompt();
     captureFace(playerName); // fire-and-forget snapshot for the photos/ folder
+    setMode(($('cv-name-hands') as HTMLInputElement).checked ? 'hands' : 'pose');
     pendingGame = true;
     if (interpreter.calibrated) {
         beginGame();
@@ -530,6 +543,27 @@ $('cv-stop').addEventListener('click', () => {
     }
 });
 
+// ---------- Control mode switch ----------
+function setMode(m: Mode) {
+    if (m === mode && interpreter) return;
+    mode = m;
+    try { localStorage.setItem(MODE_KEY, m); } catch {}
+    const aspect = interpreter?.opts?.aspect || 1;
+    interpreter = m === 'hands' ? new HandsInterpreter() : new GestureInterpreter();
+    interpreter.opts.aspect = aspect;
+    applyTuning(loadTuning());
+    mimic.armsOnly = m === 'hands';
+    engine.anchor = m;
+    (window as any).__cvtest && ((window as any).__cvtest.interpreter = interpreter);
+    if (restoreCalibration()) {
+        $('cv-calibrate').textContent = 'Re-calibrate';
+    } else {
+        $('cv-calibrate').textContent = 'Calibrate';
+    }
+    setStatus(m === 'hands' ? 'Hands mode: hold both hands in front of you to calibrate'
+                            : 'Standing mode');
+}
+
 // ---------- Pose engine ----------
 // Command box around the calibrated centroid: cross the left/right vertical
 // lines to change lanes, lift the hips above the top line to jump, drop
@@ -541,8 +575,11 @@ function drawGuides(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) {
     const cx = calib.hipX * canvas.width;
     const cy = calib.hipY * canvas.height;
     // Thresholds are in torso units; convert back to normalized x/y.
-    const xr = (calib.hipX - opts.laneEnter * calib.torso / aspect) * canvas.width;
-    const xl = (calib.hipX + opts.laneEnter * calib.torso / aspect) * canvas.width;
+    // Hands mode: each STEP line sits beyond that hand's resting spot.
+    const baseR = mode === 'hands' ? calib.rx : calib.hipX;
+    const baseL = mode === 'hands' ? calib.lx : calib.hipX;
+    const xr = (baseR - opts.laneEnter * calib.torso / aspect) * canvas.width;
+    const xl = (baseL + opts.laneEnter * calib.torso / aspect) * canvas.width;
     const yJump = (calib.hipY - opts.jumpFire * calib.torso) * canvas.height;
     const yDuck = (calib.hipY + opts.duckFire * calib.torso) * canvas.height;
 
@@ -604,6 +641,7 @@ const engine = new PoseEngine({
             $('cv-stats').textContent =
                 `pose ${engine.fps} fps · ${Math.round(engine.inferMs)} ms`
                 + (engine.track?.locked ? ' · locked on player' : ' · searching')
+                + (mode === 'hands' ? ' · hands mode' : '')
                 + (LOW_POWER ? ' · low-power' : '');
         }
         if (interpreter.debug.calibrating) {
@@ -728,12 +766,19 @@ let guideText = '';
 function framingProblem(landmarks: any): [string, string] | null {
     if (!landmarks) return ['Step into frame', "I can't see you"];
     const vis = (i: number) => landmarks[i] && (landmarks[i].visibility ?? 1) > 0.5;
-    if (!vis(11) || !vis(12)) return ['Show your shoulders', 'Step back into frame'];
-    if (!vis(23) || !vis(24)) return ['Show your hips', 'Step back so your waist is visible'];
-    const hipX = (landmarks[23].x + landmarks[24].x) / 2;
+    if (!vis(11) || !vis(12)) return ['Show your shoulders', 'Move back into frame'];
+    if (mode === 'hands') {
+        if (!vis(15) || !vis(16)) return ['Show both hands', 'Keep both hands in view'];
+    } else if (!vis(23) || !vis(24)) {
+        return ['Show your hips', 'Step back so your waist is visible'];
+    }
     const shY = (landmarks[11].y + landmarks[12].y) / 2;
-    const hipY = (landmarks[23].y + landmarks[24].y) / 2;
-    const torso = hipY - shY; // in frame heights
+    const shX = (landmarks[11].x + landmarks[12].x) / 2;
+    const hipX = mode === 'hands' ? shX : (landmarks[23].x + landmarks[24].x) / 2;
+    // Body size in frame heights: torso length standing, shoulder width seated.
+    const torso = mode === 'hands'
+        ? Math.abs(landmarks[11].x - landmarks[12].x) * (interpreter.opts.aspect || 1) * 1.3
+        : (landmarks[23].y + landmarks[24].y) / 2 - shY;
     if (torso > 0.55) return ['Too close', 'Step back from the camera'];
     if (torso < 0.12) return ['Come closer', "You're too far from the camera"];
     if (hipX < 0.15) return ['Move right ➜', 'Get back to the center'];
@@ -832,6 +877,8 @@ async function captureFace(name: string) {
     audio: {theme: themeAudio, crash: crashAudio},
     roadLength,
     board: {load: loadBoard, save: saveBoard, record: recordRun},
+    setMode,
+    get mode() { return mode; },
     newGame(name: string) {
         ($('cv-name-input') as HTMLInputElement).value = name;
         submitName();
@@ -857,6 +904,8 @@ async function captureFace(name: string) {
         await engine.init();
         const v = $('cv-video') as HTMLVideoElement;
         interpreter.opts.aspect = (v.videoWidth / v.videoHeight) || 1;
+        engine.anchor = mode;
+        mimic.armsOnly = mode === 'hands';
         engine.start();
         ($('cv-calibrate') as HTMLButtonElement).disabled = false;
         ($('cv-newgame') as HTMLButtonElement).disabled = false;

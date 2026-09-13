@@ -28,6 +28,7 @@ export class PoseEngine {
         // band around the player, so bystanders are excluded and inference is
         // cheaper. roi is normalized {x, w} (full height).
         this.track = { locked: false, roi: null, lost: 0 };
+        this.anchor = 'hips'; // 'hips' | 'hands': where the yellow centroid is drawn
         this.video = video;
         this.canvas = canvas;
         this.ctx = canvas.getContext("2d");
@@ -235,9 +236,10 @@ export class PoseEngine {
             ctx.setLineDash([]);
         }
 
-        // Hip center — the anchor point the gesture layer will use.
-        const hipX = (landmarks[23].x + landmarks[24].x) / 2 * canvas.width;
-        const hipY = (landmarks[23].y + landmarks[24].y) / 2 * canvas.height;
+        // Centroid the gesture layer uses: hips (standing) or hands (seated).
+        const [a, b] = this.anchor === 'hands' ? [15, 16] : [23, 24];
+        const hipX = (landmarks[a].x + landmarks[b].x) / 2 * canvas.width;
+        const hipY = (landmarks[a].y + landmarks[b].y) / 2 * canvas.height;
         ctx.fillStyle = "rgba(255, 235, 59, 0.95)";
         ctx.beginPath();
         ctx.arc(hipX, hipY, 9, 0, Math.PI * 2);

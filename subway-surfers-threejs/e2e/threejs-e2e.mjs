@@ -572,6 +572,54 @@ const pick = await evalJs(`
 check("picks the player in the guidance zone over a background person", pick.a && pick.b && pick.none);
 check("between similar bodies picks the one nearest the calibrated spot", pick.c);
 check("lock band centered on the player, wide enough for lane steps", pick.d);
+
+// 7i. Seated / hands mode: switch, calibrate on the hands, drive the game.
+const handsMode = await evalJs(`
+(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const T = window.__cvtest;
+    const hands = (cx, cy, o = {}) => {
+        const lm = Array.from({length: 33}, () => ({x: .5, y: .5, z: 0, visibility: 1}));
+        lm[11] = {x: cx + .10, y: cy - .25, z: 0, visibility: 1};
+        lm[12] = {x: cx - .10, y: cy - .25, z: 0, visibility: 1};
+        lm[15] = {x: o.lx ?? cx + .15, y: o.ly ?? cy, z: 0, visibility: 1};
+        lm[16] = {x: o.rx ?? cx - .15, y: o.ry ?? cy, z: 0, visibility: 1};
+        return lm;
+    };
+    const out = {};
+    T.setMode('hands');
+    out.mode = T.mode === 'hands' && T.interpreter.mode === 'hands';
+    out.modalToggle = !!document.getElementById('cv-name-hands');
+    out.guideHands = T.framingProblem(hands(0.5, 0.6))?.[0];
+    const noHands = hands(0.5, 0.6); noHands[16].visibility = 0;
+    out.guideNoHands = T.framingProblem(noHands)?.[0];
+    // calibrate on the hands (aspect-corrected units come from the real video)
+    const A = T.interpreter.opts.aspect;
+    T.interpreter.startCalibration();
+    for (let i = 0; i < 30; i++) T.inject(hands(0.5, 0.6), window.__t += 33);
+    out.calibrated = T.interpreter.calibrated;
+    const ctl = T.control();
+    ctl.collideCheckAll = () => { ctl.downCollide = true; ctl.frontCollide = false; ctl.leftCollide = false; ctl.rightCollide = false; };
+    // both hands up 0.06 → 0.06/(0.2*A) widths ≥ 0.15 for any aspect ≤ 2
+    T.inject(hands(0.5, 0.6, {ly: 0.54, ry: 0.54}), window.__t += 500);
+    out.jumpKey = ctl.key;
+    T.inject(hands(0.5, 0.6), window.__t += 700);
+    await sleep(300);
+    // right hand out 0.22 raw → 0.22*A/(0.2*A) = 1.1 widths > laneEnter 0.55
+    T.inject(hands(0.5, 0.6, {rx: 0.13}), window.__t += 33); await sleep(250);
+    out.wayRight = ctl.way;
+    T.inject(hands(0.5, 0.6), window.__t += 33); await sleep(250);
+    out.wayCenter = ctl.way;
+    T.setMode('pose');
+    out.back = T.mode === 'pose' && T.interpreter.mode !== 'hands';
+    return out;
+})()
+`);
+check("hands mode: switch + toggle in New Game prompt", handsMode.mode && handsMode.modalToggle && handsMode.back);
+check("hands mode: guidance asks for both hands", handsMode.guideHands === undefined && handsMode.guideNoHands === 'Show both hands');
+check("hands mode: calibrates on the hands", handsMode.calibrated);
+check("hands mode: both hands up → jump", handsMode.jumpKey === 'w');
+check("hands mode: right hand out → right lane, back → center", handsMode.wayRight === 3 && handsMode.wayCenter === 2);
 check("guidance: out of frame / too close / too far / off-center detected",
     guide.none === 'Step into frame' && guide.close === 'Too close' && guide.far === 'Come closer'
     && guide.left === 'Move right ➜' && guide.shoulders === 'Show your shoulders');
