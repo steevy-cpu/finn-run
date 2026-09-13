@@ -72,7 +72,16 @@ Six New Game → Stop cycles, forced GC before each read (renderer counts; heap 
 
 40 s single run after the fix (sections created and pruned): geometries 93 → 100 (2 alive) → 105 (3 alive) and **stay 105 when the 4th section is made and the 1st pruned**; textures constant. Arturo's constant share is +1 geometry / +2 textures.
 
-Residual: three r155's renderer has no `InstancedMesh` dispose hook (added in r156), so the instance-matrix GPU buffers of pruned Phase 2/3 sections are released only with the page. They are not in `info.memory`; size is instances × 64 B per section. Fixing it needs a three upgrade, out of scope here.
+**Correction (instance buffers).** An earlier version of this packet claimed the installed three (0.155.0) could not free instance-matrix buffers. That was wrong: the check had looked in `WebGLRenderer.js`; the handler lives in `src/renderers/webgl/WebGLObjects.js` (`onInstancedMeshDispose` → `attributes.remove(instanceMatrix)` and `instanceColor`, and `WebGLAttributes.remove` → `gl.deleteBuffer`), and the bundled `three.module.js` in `node_modules` contains it. The renderer registers that listener on every `InstancedMesh` the first time it renders it, so `disposeSection()`'s `InstancedMesh.dispose()` already releases the GPU buffers. No engine upgrade and no further code change were needed.
+
+Direct verification (`e2e/gl-buffer-audit.mjs`, instrumentation injected from the probe into the page — nothing in the app bundle): spies on `gl.createBuffer`/`gl.deleteBuffer` of the game's context, a `dispose` listener on every per-section `InstancedMesh`, and the count of instance attributes in the sections being retired.
+| | retired instanced meshes / instance attrs | dispose events fired | `gl.deleteBuffer` calls | live GL buffers after |
+|---|---|---|---|---|
+| restart 2…5, Arturo off | 131 / 131 each | 131 each | 151 each (= 131 instance buffers + 5 owned geometries × 4 attribute buffers) | 159, 159, 159, 159 |
+| restart 2…5, Arturo on | 131 / 131 each | 131 each | 151 each | 165, 165, 165, 165 |
+| long run, 4th section made / 1st pruned | 131 / 131 | +131 | +151 (while +151 were created for the new section) | plateau 461 (off) / 467 (on) with 3 sections alive |
+
+(Restart 1 retires nothing by design: the first New Game from a fresh page counts down without an `r` restart. The Arturo on/off difference of 6 live buffers is his one skinned geometry's attribute buffers.) Per-section instanced meshes are always retired through `disposeSection()` before the section is dropped; the shared kit geometry/materials, cached model geometry and all textures are untouched, and the pursuer's actor is never disposed by the section path.
 
 Regression after the fix: e2e 92/92 (`arturo=1`), 85/85 (`arturo=0`); gestures 68, effects 6, polish 6.
 
