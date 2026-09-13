@@ -57,3 +57,22 @@ export const UI_MODE: UiMode = (() => {
     } catch {}
     return 'original';
 })();
+
+// Phase 7 Arturo pursuer: ?arturo=1|0 (persisted in cv-arturo, default off).
+// ?arturoModel=/assets/… (NOT persisted, dev/test only) points the pursuer
+// at another same-origin GLB — used by the e2e lifecycle checks with a
+// labelled stand-in until the real arturo.glb exists.
+export const PURSUER = (() => {
+    try {
+        const q = new URLSearchParams(location.search).get('arturo');
+        if (q === '1' || q === '0') localStorage.setItem('cv-arturo', q);
+        return localStorage.getItem('cv-arturo') === '1';
+    } catch { return false; }
+})();
+export const PURSUER_URL = (() => {
+    const fallback = '/assets/glb/arturo.glb';
+    try {
+        const q = new URLSearchParams(location.search).get('arturoModel');
+        return q && /^\/assets\/[\w\-./]+\.glb$/.test(q) ? q : fallback;
+    } catch { return fallback; }
+})();

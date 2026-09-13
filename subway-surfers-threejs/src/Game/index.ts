@@ -12,6 +12,8 @@ import Camera from './camera';
 import Time from './time';
 // @ts-ignore — plain JS module (Phase 5 VFX kit)
 import {FinnEffects} from './FinnEffects.mjs';
+import {Pursuer} from './pursuer';
+import {PURSUER, PURSUER_URL} from './envart';
 // FPS overlay is a dev tool only; never shown in the production build.
 const stats = import.meta.env.DEV ? new Stats() : null;
 if (stats) document.body.appendChild(stats.dom);
@@ -32,6 +34,9 @@ export default class Game extends EventEmitter {
     // outside every collision group. Runs only while a run is live.
     fx: any;
     fxEnabled: boolean = true;
+    // Phase 7: cosmetic pursuer (Arturo), opt-in via ?arturo=1. Observes
+    // game state; never influences it.
+    pursuer: Pursuer | null = null;
     private onVisibility = () => {
         if (document.hidden) this.fx?.setRunning(false);
         else if (this.fxEnabled && this.player?.controlPlayer?.gameStatus === 'start') this.fx?.setRunning(true);
@@ -72,6 +77,7 @@ export default class Game extends EventEmitter {
             this.fx.setRunning(status === 'start' && this.fxEnabled);
         });
         document.addEventListener('visibilitychange', this.onVisibility);
+        if (PURSUER) this.pursuer = new Pursuer(this, {url: PURSUER_URL});
         this.resize();
         this.resource();
     }
@@ -82,6 +88,8 @@ export default class Game extends EventEmitter {
         this.fx?.update(delta, this.camera.perspectiveCamera);
         this.renderer.update();
         this.player?.update && this.player.update(delta);
+        // After Finn moved: the pursuer reads his transform, never writes it.
+        this.pursuer?.update(delta, this.player?.playerScene, this.player?.controlPlayer);
     }
     resource() {
         THREE.DefaultLoadingManager.onLoad = () => {
@@ -108,6 +116,8 @@ export default class Game extends EventEmitter {
         cache?.clearCacheData();
         this.removelistener();
         this.fx?.dispose();
+        this.pursuer?.dispose();
+        this.pursuer = null;
         this.player?.polish?.dispose();
         disposeNode(this.scene);
         this.scene.clear();

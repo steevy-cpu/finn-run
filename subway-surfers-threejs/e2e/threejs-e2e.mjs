@@ -792,6 +792,61 @@ check("ui: dialogs are labelled role=dialog", ui.dialogAria);
 check("no uncaught exceptions / console errors during the run", consoleErrors.length === 0);
 if (consoleErrors.length) console.log("    errors:", consoleErrors.slice(0, 5).join(" | "));
 
+// 12. Phase 7 pursuer (only when ?arturo=1 loaded an actor): observes game
+// state, one actor/mixer, reattached after restart, reacts once per committed
+// mistake, never touches collision/game-over, disposed cleanly.
+const hasPursuer = await evalJs(`!!window.__cvtest.pursuer`);
+if (hasPursuer) {
+    const pr = await evalJs(`
+    (async () => {
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        const T = window.__cvtest, p = T.pursuer, out = {};
+        out.loaded = p.state === 'ready' && !!p.report && p.group.children.length === 1;
+        out.clipsMapped = !!p.clips.run && !!p.clips.idle;
+        out.noRaycast = (() => { let ok = true; p.group.traverse(o => { if (o.isMesh && o.raycast !== undefined && o.raycast.length !== 0) ok = false; }); return ok; })();
+        out.notReservedNames = (() => { let ok = true; p.group.traverse(o => { if (['train','kerbStone','coin','plane'].includes(o.name)) ok = false; }); return ok; })();
+        // Fresh run: New Game (calibrated) → r → ready (hidden, scene emptied) → countdown → start (attached)
+        T.newGame('Tester'); await sleep(700);
+        out.hiddenOnReady = p.active === false && p.group.visible === false && !T.control().scene.getObjectByName('pursuer');
+        let started = false; for (let i = 0; i < 15 && !started; i++) { await sleep(400); started = T.control().gameStart === true; }
+        const c = T.control(); c.frontCollideCheckStatus = () => {}; c.checkGameStatus = () => {};
+        await sleep(700);
+        out.attachedOnStart = started && c.scene.children.filter(o => o.name === 'pursuer').length === 1 && p.active && p.current === 'run';
+        out.oneMixer = !!p.mixer && c.game.pursuer === p;
+        const f = c.model.position, g = p.group.position;
+        out.behindFinn = g.z > f.z + 2 && g.z < f.z + 9; // +Z is behind (Finn runs toward -Z)
+        out.onGround = Math.abs(g.y - f.y) < 0.6;
+        out.gapReset = Math.abs(p.gap - p.opts.gap) < 0.6;
+        // Committed-mistake reaction: once per increase, not per frame.
+        const r0 = p.reactions, m0 = c.smallMistake; c.smallMistake = m0 + 1; await sleep(400);
+        out.reactsOnce = p.reactions - r0 === 1 && p.gapTarget < p.opts.gap;
+        await sleep(400); out.noRepeat = p.reactions - r0 === 1;
+        // Zero influence: mistakes/status are exactly what the game set.
+        out.noInfluence = c.smallMistake === m0 + 1 && c.gameStatus === 'start' && c.gameStart === true;
+        // Stop → end: idle, inactive, no crash/death caused by the pursuer.
+        document.getElementById('cv-stop').click(); await sleep(300);
+        out.idleOnEnd = p.current === 'idle' && p.active === false && c.status !== 'die';
+        document.getElementById('cv-board-close').click();
+        // Dispose: resources released, listener removed, group gone.
+        const before = c.game.renderer.renderer.info.memory.geometries;
+        p.dispose(); await sleep(100);
+        out.disposed = p.state === 'idle' && !p.mixer && p.group.parent === null && p.group.children.length === 0;
+        c.game.emit('gameStatus', 'start'); await sleep(50);
+        out.listenerGone = p.active === false && p.group.parent === null;
+        c.game.emit('gameStatus', 'end');
+        return JSON.stringify(out);
+    })()
+    `).then(JSON.parse);
+    check("pursuer: actor loaded once with run + idle mapped", pr.loaded && pr.clipsMapped && pr.oneMixer);
+    check("pursuer: cosmetic meshes unpickable, no reserved names", pr.noRaycast && pr.notReservedNames);
+    check("pursuer: hidden on ready, one group reattached on start", pr.hiddenOnReady && pr.attachedOnStart);
+    check("pursuer: behind Finn on the ground, gap reset per run", pr.behindFinn && pr.onGround && pr.gapReset);
+    check("pursuer: reacts once per committed mistake", pr.reactsOnce && pr.noRepeat);
+    check("pursuer: zero influence on mistakes / game state", pr.noInfluence);
+    check("pursuer: idles on end, disposes cleanly, listener removed", pr.idleOnEnd && pr.disposed && pr.listenerGone);
+    if (Object.values(pr).some(v => v === false)) console.log("    pursuer:", JSON.stringify(pr));
+}
+
 const shot = await send("Page.captureScreenshot", { format: "png" });
 if (shot.result?.data && process.argv[3]) {
     const fs = await import("fs");
