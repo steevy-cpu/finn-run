@@ -45,6 +45,7 @@ export default class Environment {
     }
     // 开始游戏环境配置
     startGame() {
+        for (const g of this.sections) if (g) Environment.disposeSection(g);
         this.plane = [];
         this.obstacal = [];
         this.z = -1 * (roadLength / 2) + 10;
@@ -70,6 +71,28 @@ export default class Environment {
         this.sections.push(modelGroup);
     }
 
+    // ---- Section resource ownership ------------------------------------
+    // A road section owns: the plane geometries/materials it creates, the
+    // per-instance material clones from cloneModel(), and the instance
+    // buffers of its InstancedMeshes. It does NOT own the cached model
+    // geometries, the kit geometries/materials shared by every section, or
+    // any texture (all textures come from the shared loader cache). Only
+    // tagged resources are disposed, so surviving objects keep theirs.
+    static own<T extends {userData: any}>(res: T): T {
+        res.userData.ownedBySection = true;
+        return res;
+    }
+    static disposeSection(group: THREE.Object3D) {
+        if ((group as any).userData.disposed) return;
+        (group as any).userData.disposed = true;
+        group.traverse((o: any) => {
+            if (o.isInstancedMesh) o.dispose(); // frees instanceMatrix/instanceColor GPU buffers only
+            if (o.geometry?.userData?.ownedBySection) o.geometry.dispose();
+            const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+            for (const m of mats) if (m?.userData?.ownedBySection) m.dispose(); // maps untouched
+        });
+    }
+
     // Endless-runner hygiene: drop road sections well behind the player.
     // Without this the scene grows without bound (every section's houses,
     // trains and coins keep getting matrix-updated and culled every frame)
@@ -81,6 +104,7 @@ export default class Environment {
                 continue;
             }
             this.scene.remove(g);
+            Environment.disposeSection(g);
             this.sections[i] = null;
             // Keep array indices aligned with plane numbers; null = gone.
             this.plane[i] = null as any;
@@ -106,10 +130,10 @@ export default class Environment {
         planeTexure.wrapS = THREE.RepeatWrapping;
         planeTexure.wrapT = THREE.RepeatWrapping;
         planeTexure.repeat.set(roadWidth * 3, 3);
-        const planGeometry = new THREE.PlaneGeometry(roadWidth, roadLength, 1, 1);
-        const planMaterial = new THREE.MeshPhongMaterial({
+        const planGeometry = Environment.own(new THREE.PlaneGeometry(roadWidth, roadLength, 1, 1));
+        const planMaterial = Environment.own(new THREE.MeshPhongMaterial({
             map: planeTexure,
-        });
+        }));
         const plane = new THREE.Mesh(planGeometry, planMaterial);
         plane.name = 'plane';
         plane.rotation.x = -Math.PI / 2;
@@ -121,15 +145,15 @@ export default class Environment {
         planeTexure1.wrapS = THREE.RepeatWrapping;
         planeTexure1.wrapT = THREE.RepeatWrapping;
         planeTexure1.repeat.set(120, 30);
-        const planGeometry1 = new THREE.PlaneGeometry(60, roadLength);
-        const planMaterial1 = new THREE.MeshBasicMaterial({
+        const planGeometry1 = Environment.own(new THREE.PlaneGeometry(60, roadLength));
+        const planMaterial1 = Environment.own(new THREE.MeshBasicMaterial({
             map: planeTexure1,
-        });
+        }));
         const plane1 = new THREE.Mesh(planGeometry1, planMaterial1);
         plane1.rotation.x = -Math.PI / 2;
         plane1.position.set(0, -0.01, z);
-        const planGeometry2 = new THREE.PlaneGeometry(60, roadLength);
-        const planMaterial2 = new THREE.MeshBasicMaterial({});
+        const planGeometry2 = Environment.own(new THREE.PlaneGeometry(60, roadLength));
+        const planMaterial2 = Environment.own(new THREE.MeshBasicMaterial({}));
         const plane2 = new THREE.Mesh(planGeometry2, planMaterial2);
         plane2.position.set(roadWidth / 2, 3, -1 * (roadLength / 2) + 10);
         const plane3 = new THREE.Mesh(planGeometry2, planMaterial2);
@@ -155,13 +179,13 @@ export default class Environment {
         ]);
         this.setThingName(train, 'train');
         this.setThingName(kerbStone, 'kerbStone');
-        const planGeometry = new THREE.PlaneGeometry(5, 10);
-        const planGeometry1 = new THREE.PlaneGeometry(5, 19);
-        const planGeometry2 = new THREE.PlaneGeometry(5, 18);
-        const planMaterial = new THREE.MeshPhongMaterial({
+        const planGeometry = Environment.own(new THREE.PlaneGeometry(5, 10));
+        const planGeometry1 = Environment.own(new THREE.PlaneGeometry(5, 19));
+        const planGeometry2 = Environment.own(new THREE.PlaneGeometry(5, 18));
+        const planMaterial = Environment.own(new THREE.MeshPhongMaterial({
             opacity: 0,
             transparent: true,
-        });
+        }));
         train.scale.set(0.3, 0.3, 0.3);
         const trainSizeZ = this.comupteBox(train).z;
 
@@ -535,7 +559,7 @@ export default class Environment {
         cloneObj.children.map((v: any, i: number) => {
             if (v.material) {
                 // @ts-ignore
-                v.material = obj.children[i].material.clone();
+                v.material = Environment.own(obj.children[i].material.clone());
             }
         });
         rotation && cloneObj.rotateY(rotation);

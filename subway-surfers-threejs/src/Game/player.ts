@@ -178,6 +178,10 @@ export default class Player extends EventEmitter {
         }
         this.playerScene = playerScene;
         this.scene.add(playerScene);
+        // Respawn replaces the light; the old one is already off the scene
+        // (restart empties it) but its shadow-map render target is GPU memory
+        // that only dispose() returns.
+        this.light?.dispose();
         this.light = new THREE.DirectionalLight(0xffffff, 1);
         this.light.position.set(0, 10, 5);
         this.light.lookAt(new THREE.Vector3(0, 100, 5));
