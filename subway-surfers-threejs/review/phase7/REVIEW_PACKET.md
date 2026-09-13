@@ -29,7 +29,7 @@ Branch `phase2-environment`, 2026-09-13. Phases 2, 3, 4, 5 (batch 1) and 6 intac
 | Speed sync | Finn 20 u/s; stride 1.245 × 3.08 = 3.84 u/cycle → exact cadence would be timeScale 2.6 (5.2 cycles/s); **capped at 1.6** (3.2 cycles/s, vs Finn's 1.14). Residual foot slide ≈ 38 % at full speed — deliberate; exact sync looked like a blur. Tunable: `maxCadence`. |
 | Hidden while overlapping a passed obstacle | yes (one short upward ray; e.g. sample 4 in the probe) |
 
-Captures (`shots/`, gameplay camera, 720×900 game pane): `arturo-run.png`, `arturo-run-lane.png` (after a lane change), `arturo-run-pressure.png` (after a mistake), `arturo-idle-end.png` (Stop → idle behind Finn). `pursuer-run-standin.png` is the earlier stand-in and is kept only for the history.
+Captures (`shots/`, gameplay camera, 720×900 game pane): `arturo-run.png`, `arturo-run-lane.png` (after a lane change), `arturo-run-pressure.png` (after a mistake), `arturo-idle-end.png` (Stop → idle behind Finn). See `shots/CAPTURES.md`; `shots/superseded/` holds the stand-in captures and one real-asset capture taken before the facing/material corrections.
 
 ## Code (changed files)
 | File | Change |
@@ -57,7 +57,26 @@ Untouched: MediaPipe engines/scheduling, gestures/thresholds, calibration, perso
 
 Arturo = **+12.5k triangles, +1 geometry, +2 texture objects (one 2048² image), ~1 draw call**. Headless frame pacing is vsync-bound at 60 Hz in both, so it cannot show the GPU cost of a second skinned character; inference deltas are noise (they move both ways). **Real-camera measurement on the booth laptop, both control modes, is still needed.**
 
-### Memory after restarts (4 cycles New Game → Stop)
+### Restart growth — traced and fixed (separate commit after 44a5665)
+Ownership trace: each road section creates five `PlaneGeometry`s (two ground planes in `setPlane`, three collider planes in `loadObstacle`) plus their materials and per-clone material copies; each Finn respawn creates a new shadow-casting `DirectionalLight`. The restart key handler empties the scene and `pruneBehind` removes old sections, but nothing was disposed, so renderer-tracked GPU resources grew linearly — it did not settle. Post-GC JS heap was flat throughout (18–20 MB), so this was GPU/renderer bookkeeping, not JavaScript retention.
+
+Fix (`environment.ts`, `player.ts` only): resources a section creates are tagged as section-owned; `disposeSection()` disposes only tagged geometry/materials and calls `InstancedMesh.dispose()`; it never touches the cached model geometry, the kit's shared geometry/materials, or any texture (all textures come from the shared loader cache and are reused by the next section). `startGame()` disposes the previous sections before rebuilding, `pruneBehind()` disposes what it removes, and `createPlayer()` disposes the superseded light's shadow-map render target. Delayed loads cannot reattach obsolete objects: the section builders only await cached promises after the first section, so they complete before any later restart, and the pursuer owns a single group that it re-adds to the surviving scene object.
+
+Six New Game → Stop cycles, forced GC before each read (renderer counts; heap separately):
+| | geometries (baseline → 1 → 6) | textures | post-GC heap MB |
+|---|---|---|---|
+| before, off | 93 → 95 → 120 (+5/cycle) | 6 → 6 → 11 (+1/cycle) | 18.3 → 18.9 |
+| before, on | 93 → 96 → 121 | 6 → 8 → 13 | 19.4 → 20.2 |
+| **after, off** | 93 → 95 → **95** | 6 → 6 → **6** | 18.2 → 19.2 |
+| **after, on** | 93 → 96 → **96** | 6 → 8 → **8** | 18.9 → 19.9 |
+
+40 s single run after the fix (sections created and pruned): geometries 93 → 100 (2 alive) → 105 (3 alive) and **stay 105 when the 4th section is made and the 1st pruned**; textures constant. Arturo's constant share is +1 geometry / +2 textures.
+
+Residual: three r155's renderer has no `InstancedMesh` dispose hook (added in r156), so the instance-matrix GPU buffers of pruned Phase 2/3 sections are released only with the page. They are not in `info.memory`; size is instances × 64 B per section. Fixing it needs a three upgrade, out of scope here.
+
+Regression after the fix: e2e 92/92 (`arturo=1`), 85/85 (`arturo=0`); gestures 68, effects 6, polish 6.
+
+### Memory after restarts — original measurement (4 cycles, before the fix)
 | | geometries | textures | heap MB |
 |---|---|---|---|
 | off | 95 → 100 → 105 → 110 | 6 → 7 → 8 → 9 | 21 → 22 → 22 → 31 |
