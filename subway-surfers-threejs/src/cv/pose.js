@@ -4,9 +4,16 @@
 
 // Vendored: the npm package is bundled and the wasm + model live in
 // public/mediapipe/, so the game works with no internet connection.
-import { PoseLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+import { PoseLandmarker, HandLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 const WASM_PATH = "/mediapipe/wasm";
 const MODEL_PATH = "/mediapipe/pose_landmarker_lite.task";
+const HAND_MODEL_PATH = "/mediapipe/hand_landmarker.task";
+
+// Hand landmark edges (21 points per hand).
+const HAND_CONNECTIONS = [
+    [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12],
+    [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17],
+];
 
 // Skeleton edges over MediaPipe's 33-landmark model (subset that reads well).
 const POSE_CONNECTIONS = [
@@ -28,7 +35,10 @@ export class PoseEngine {
         // band around the player, so bystanders are excluded and inference is
         // cheaper. roi is normalized {x, w} (full height).
         this.track = { locked: false, roi: null, lost: 0 };
-        this.anchor = 'hips'; // 'hips' | 'hands': where the yellow centroid is drawn
+        this.anchor = 'hips'; // 'hips' | 'hands': seated mode runs the hand tracker too
+        this.vision = null;
+        this.handLandmarker = null; // created lazily for seated mode
+        this._handInit = null;
         this.video = video;
         this.canvas = canvas;
         this.ctx = canvas.getContext("2d");
@@ -51,6 +61,7 @@ export class PoseEngine {
     async init() {
         this.onStatus("Loading MediaPipe model…");
         const vision = await FilesetResolver.forVisionTasks(WASM_PATH);
+        this.vision = vision;
         this.landmarker = await PoseLandmarker.createFromOptions(vision, {
             baseOptions: {
                 modelAssetPath: MODEL_PATH,
@@ -112,7 +123,12 @@ export class PoseEngine {
             const poses = (result.landmarks || []).map(lm => roi
                 ? lm.map(p => ({ ...p, x: roi.x + p.x * roi.w }))
                 : lm);
-            const landmarks = this.pickPose(poses);
+            let landmarks = this.pickPose(poses);
+            // Seated mode: the hand tracker provides the two hands precisely
+            // (the pose model only estimates wrists and needs the hips).
+            if (this.anchor === 'hands') {
+                landmarks = this._detectHands(source, roi, t, landmarks);
+            }
             if (landmarks) {
                 this.track.lost = 0;
                 this._updateRoi(landmarks);
@@ -126,6 +142,46 @@ export class PoseEngine {
             if (this.onResults) this.onResults(landmarks || null, this.fps);
         }
         requestAnimationFrame(() => this._loop());
+    }
+
+    // Seated mode: run the hand tracker on the same source and merge the two
+    // hands into the 33-slot pose array (slots 15/16 = palm centers) so the
+    // gesture layer stays uniform. `landmarks.hands` keeps the 21-point hands
+    // for drawing and `landmarks.palm` the mean palm length (aspect-corrected)
+    // as the size unit — no hips or shoulders required.
+    _detectHands(source, roi, t, poseLm) {
+        if (!this.handLandmarker) {
+            if (!this._handInit && this.vision) {
+                this._handInit = HandLandmarker.createFromOptions(this.vision, {
+                    baseOptions: { modelAssetPath: HAND_MODEL_PATH, delegate: "GPU" },
+                    runningMode: "VIDEO",
+                    numHands: 2,
+                }).then(h => { this.handLandmarker = h; }).catch(e => console.error("[CV] hand model", e));
+            }
+            return poseLm;
+        }
+        const res = this.handLandmarker.detectForVideo(source, t);
+        const hands = (res.landmarks || []).map(h => h.map(p => ({
+            ...p, x: roi ? roi.x + p.x * roi.w : p.x,
+        })));
+        if (hands.length < 2) return poseLm;
+        const aspect = (this.video.videoWidth || 16) / (this.video.videoHeight || 9);
+        const palmCenter = h => {
+            const idx = [0, 5, 9, 13, 17];
+            return { x: idx.reduce((a, i) => a + h[i].x, 0) / 5, y: idx.reduce((a, i) => a + h[i].y, 0) / 5 };
+        };
+        const palmLen = h => Math.hypot((h[9].x - h[0].x) * aspect, h[9].y - h[0].y);
+        // Two hands: the one with the smaller raw x is the player's RIGHT hand
+        // (their right is camera-left in the unmirrored frame).
+        const sorted = hands.slice(0, 2).sort((a, b) => palmCenter(a).x - palmCenter(b).x);
+        const [right, left] = sorted;
+        const lm = poseLm ? poseLm.slice() : new Array(33).fill(null).map(() => ({ x: 0, y: 0, visibility: 0 }));
+        const pr = palmCenter(right), pl = palmCenter(left);
+        lm[16] = { x: pr.x, y: pr.y, z: 0, visibility: 1 };
+        lm[15] = { x: pl.x, y: pl.y, z: 0, visibility: 1 };
+        lm.hands = sorted;
+        lm.palm = (palmLen(right) + palmLen(left)) / 2;
+        return lm;
     }
 
     // Draw the (cropped) frame, downscaled to at most PROC_W wide, for inference.
@@ -153,11 +209,18 @@ export class PoseEngine {
         const aspect = (this.video.videoWidth || 16) / (this.video.videoHeight || 9);
         const target = (this.target && this.target()) || { x: 0.5, y: 0.55 };
         let best = null, bestScore = Infinity;
+        const seated = this.anchor === 'hands';
         for (const lm of poses) {
-            if (!vis(lm[11]) || !vis(lm[12]) || !vis(lm[23]) || !vis(lm[24])) continue;
-            const hx = (lm[23].x + lm[24].x) / 2, hy = (lm[23].y + lm[24].y) / 2;
+            if (!vis(lm[11]) || !vis(lm[12])) continue;
+            if (!seated && (!vis(lm[23]) || !vis(lm[24]))) continue;
             const shx = (lm[11].x + lm[12].x) / 2, shy = (lm[11].y + lm[12].y) / 2;
-            const torso = Math.hypot((shx - hx) * aspect, shy - hy);
+            // Seated: hips may be hidden — anchor on the shoulders, size by
+            // shoulder width; standing: hips + torso length.
+            const hx = seated ? shx : (lm[23].x + lm[24].x) / 2;
+            const hy = seated ? shy : (lm[23].y + lm[24].y) / 2;
+            const torso = seated
+                ? Math.abs(lm[11].x - lm[12].x) * aspect * 1.3
+                : Math.hypot((shx - hx) * aspect, shy - hy);
             if (torso < 0.03) continue;
             const score = Math.hypot((hx - target.x) * aspect, hy - target.y) / torso;
             if (score < bestScore) { bestScore = score; best = lm; }
@@ -234,6 +297,23 @@ export class PoseEngine {
             ctx.setLineDash([14, 10]);
             ctx.strokeRect(x * canvas.width + 1, 1, w * canvas.width - 2, canvas.height - 2);
             ctx.setLineDash([]);
+        }
+
+        // Seated mode: the tracked hands (21 points each).
+        if (landmarks.hands) {
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "rgba(0, 229, 255, 0.9)";
+            ctx.fillStyle = "rgba(0, 229, 255, 0.9)";
+            for (const h of landmarks.hands) {
+                for (const [a, b] of HAND_CONNECTIONS) {
+                    const [ax, ay] = px(h[a]); const [bx, by] = px(h[b]);
+                    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+                }
+                for (const p of h) {
+                    const [x, y] = px(p);
+                    ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill();
+                }
+            }
         }
 
         // Centroid the gesture layer uses: hips (standing) or hands (seated).

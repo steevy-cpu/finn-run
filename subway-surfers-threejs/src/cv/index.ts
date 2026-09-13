@@ -766,10 +766,12 @@ let guideText = '';
 function framingProblem(landmarks: any): [string, string] | null {
     if (!landmarks) return ['Step into frame', "I can't see you"];
     const vis = (i: number) => landmarks[i] && (landmarks[i].visibility ?? 1) > 0.5;
-    if (!vis(11) || !vis(12)) return ['Show your shoulders', 'Move back into frame'];
     if (mode === 'hands') {
         if (!vis(15) || !vis(16)) return ['Show both hands', 'Keep both hands in view'];
-    } else if (!vis(23) || !vis(24)) {
+        if (landmarks.hands) return null; // hand tracker has both hands: framed fine
+    }
+    if (!vis(11) || !vis(12)) return ['Show your shoulders', 'Move back into frame'];
+    if (mode !== 'hands' && (!vis(23) || !vis(24))) {
         return ['Show your hips', 'Step back so your waist is visible'];
     }
     const shY = (landmarks[11].y + landmarks[12].y) / 2;

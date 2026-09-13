@@ -314,11 +314,20 @@ export const HANDS_DEFAULTS = applyBand({
     adaptRate: 0.05,
 }, 0.60, 0.25);           // jump at +0.15, squat at -0.45 shoulder widths
 
+// Size unit: shoulder width when the pose model sees the shoulders; with the
+// hand tracker (landmarks.palm = mean palm length, wrist→middle knuckle) the
+// palm scaled to a typical shoulder width — so no upper body is required.
+const PALM_TO_SHOULDER = 4.4;
 function handsCore(landmarks, minVisibility, aspect = 1) {
-    const pts = [landmarks[L_SHOULDER], landmarks[R_SHOULDER], landmarks[L_WRIST], landmarks[R_WRIST]];
-    if (pts.some(p => !p)) return null;
-    if (pts.some(p => p.visibility !== undefined && p.visibility < minVisibility)) return null;
-    const scale = Math.abs(landmarks[L_SHOULDER].x - landmarks[R_SHOULDER].x) * aspect;
+    const vis = p => p && (p.visibility === undefined || p.visibility >= minVisibility);
+    if (!vis(landmarks[L_WRIST]) || !vis(landmarks[R_WRIST])) return null;
+    let scale;
+    if (landmarks.palm > 1e-6) {
+        scale = landmarks.palm * PALM_TO_SHOULDER;
+    } else {
+        if (!vis(landmarks[L_SHOULDER]) || !vis(landmarks[R_SHOULDER])) return null;
+        scale = Math.abs(landmarks[L_SHOULDER].x - landmarks[R_SHOULDER].x) * aspect;
+    }
     if (scale < 1e-6) return null;
     const lw = landmarks[L_WRIST], rw = landmarks[R_WRIST];
     return { cx: (lw.x + rw.x) / 2, cy: (lw.y + rw.y) / 2, lx: lw.x, rx: rw.x, scale };

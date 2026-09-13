@@ -610,11 +610,20 @@ const handsMode = await evalJs(`
     out.wayRight = ctl.way;
     T.inject(hands(0.5, 0.6), window.__t += 33); await sleep(250);
     out.wayCenter = ctl.way;
+    // The hand tracker model loads lazily on the first seated-mode frame.
+    T.engine._detectHands(T.engine.procCanvas, null, performance.now(), null);
+    for (let i = 0; i < 40 && !T.engine.handLandmarker; i++) await sleep(250);
+    out.handModel = !!T.engine.handLandmarker;
+    // Palm-scaled tracking needs no shoulders/hips at all.
+    const palmOnly = hands(0.5, 0.6); palmOnly[11].visibility = 0; palmOnly[12].visibility = 0; palmOnly[23].visibility = 0; palmOnly.palm = 0.045;
+    out.palmGuide = T.framingProblem(Object.assign(palmOnly, {hands: [[], []]})) === null;
     T.setMode('pose');
     out.back = T.mode === 'pose' && T.interpreter.mode !== 'hands';
     return out;
 })()
 `);
+check("hands mode: hand tracker model loads (vendored)", handsMode.handModel);
+check("hands mode: framed fine with just the two hands", handsMode.palmGuide);
 check("hands mode: switch + toggle in New Game prompt", handsMode.mode && handsMode.modalToggle && handsMode.back);
 check("hands mode: guidance asks for both hands", handsMode.guideHands === undefined && handsMode.guideNoHands === 'Show both hands');
 check("hands mode: calibrates on the hands", handsMode.calibrated);

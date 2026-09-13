@@ -365,5 +365,18 @@ function freshHands() {
     check("hands: hidden hand = no tracking", !g.debug.tracking);
 }
 
+{
+    // Hand tracker path: no shoulders at all, size from the palm length.
+    // palm 0.045 → scale 0.198 (≈ the 0.2 shoulder width used above).
+    const withPalm = (cx, cy, o = {}) => { const lm = hands(cx, cy, o); lm[11].visibility = 0; lm[12].visibility = 0; lm.palm = 0.045; return lm; };
+    const g = new HandsInterpreter();
+    g.startCalibration();
+    let t = 0;
+    for (let i = 0; i < HANDS_DEFAULTS.calibFrames; i++) g.update(withPalm(0.5, 0.6), (t += 33));
+    check("hands: calibrates from palm size without shoulders", g.calibrated && Math.abs(g.calib.torso - 0.198) < 1e-9);
+    const evs = g.update(withPalm(0.5, 0.6, { ly: 0.55, ry: 0.55 }), t + 33);
+    check("hands: jump works on the hand-tracker path", evs.length === 1 && evs[0].type === "jump");
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
