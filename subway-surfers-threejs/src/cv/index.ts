@@ -116,6 +116,7 @@ style.textContent = `
 #cv-fullscreen {
     background: #2a2f36; padding: 12px 14px; font-size: 18px; line-height: 1;
 }
+#cv-cam-retry[hidden] { display: none; }
 #cv-mimic-row {
     display: flex; align-items: center; gap: 8px; padding: 0 18px 6px;
     font-size: 14px; color: #9aa0a6;
@@ -189,6 +190,7 @@ panel.innerHTML = `
         <button id="cv-newgame" class="cv-btn" disabled>New Game</button>
         <button id="cv-stop" class="cv-btn" title="End the run and reveal the Top 3">Stop</button>
         <button id="cv-calibrate" class="cv-btn cv-btn-secondary" disabled>Calibrate</button>
+        <button id="cv-cam-retry" class="cv-btn cv-btn-secondary" hidden>Retry camera</button>
         <div id="cv-status">Loading…</div>
         <div id="cv-key"></div>
         <button id="cv-fullscreen" class="cv-btn" title="Fullscreen (F)">⛶</button>
@@ -746,7 +748,8 @@ const engine = new PoseEngine({
                 `pose ${engine.fps} fps · ${Math.round(engine.inferMs)} ms`
                 + (engine.track?.locked ? ' · locked on player' : ' · searching')
                 + (mode === 'hands' ? ' · hands mode' : '')
-                + (LOW_POWER ? ' · low-power' : '');
+                + (LOW_POWER ? ' · low-power' : '')
+                + ` · ${window.innerWidth}×${window.innerHeight}@${(window.devicePixelRatio || 1).toFixed(1)}x`;
         }
         if (interpreter.debug.calibrating) {
             const pct = Math.min(99, Math.round(interpreter.debug.calibProgress * 100));
@@ -1102,6 +1105,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) cance
     board: {load: loadBoard, save: saveBoard, record: recordRun},
     get fx() { return game.fx; },
     get pursuer() { return game.pursuer; },
+    startCamera,
     catch: {
         enabled: catchEnabled,
         get active() { return catchActive; },
@@ -1135,8 +1139,19 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) cance
     },
 };
 
-(async () => {
+// Camera start. A denied/busy camera leaves the game keyboard-playable and
+// shows "Retry camera": once the attendant allows the camera in the browser
+// (address-bar permission) the retry re-runs the same init without a reload.
+let cameraStarting = false;
+async function startCamera() {
+    if (cameraStarting || engine.running) return;
+    cameraStarting = true;
+    const retry = $('cv-cam-retry') as HTMLButtonElement;
+    retry.hidden = true;
     try {
+        // A previous attempt may have built the pose model before the webcam
+        // request failed; release it so the retry does not stack a second one.
+        try { (engine as any).landmarker?.close?.(); (engine as any).landmarker = null; } catch {}
         await engine.init();
         const v = $('cv-video') as HTMLVideoElement;
         interpreter.opts.aspect = (v.videoWidth / v.videoHeight) || 1;
@@ -1152,7 +1167,18 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) cance
             setStatus('Press New Game (you will calibrate first)');
         }
     } catch (err: any) {
-        setStatus('Camera error: ' + err.message + ' — keyboard still works (P to start)');
+        const denied = /NotAllowed|Permission|denied/i.test(err?.name + ' ' + err?.message);
+        const busy = /NotReadable|in use|Could not start/i.test(err?.name + ' ' + err?.message);
+        setStatus(denied
+            ? 'Camera blocked — allow the camera in the browser\'s address bar, then press Retry camera'
+            : busy ? 'Camera busy — close other apps using it, then press Retry camera'
+            : 'Camera error: ' + (err?.message || err) + ' — press Retry camera (keyboard still works: P to start)');
+        retry.hidden = false;
+        retry.focus();
         console.error('[CV] init failed', err);
+    } finally {
+        cameraStarting = false;
     }
-})();
+}
+$('cv-cam-retry').addEventListener('click', () => { startCamera(); });
+startCamera();
