@@ -142,7 +142,10 @@ style.textContent = `
     background: #071521; display: none; align-items: center; justify-content: center;
 }
 #cv-catch.on { display: flex; }
-#cv-catch video { width: 100%; height: 100%; object-fit: contain; background: #071521; display: block; }
+/* Fill the game pane exactly like the game does (the pane is ~4:5, the clip
+   16:9): cover, anchored so both faces and the shoulder contact (x≈0.33 /
+   0.53 / 0.62 of the clip) stay inside the crop. */
+#cv-catch video { width: 100%; height: 100%; object-fit: cover; object-position: 48% 50%; background: #071521; display: block; }
 #cv-catch-skip {
     position: absolute; right: 18px; bottom: 18px; z-index: 2;
     padding: 12px 22px; font: 800 16px/1 system-ui, -apple-system, sans-serif;
