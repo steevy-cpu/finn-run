@@ -192,7 +192,7 @@ onUnmounted(() => {
   left: 0;
   top: 0;
   height: 100vh;
-  width: 50vw;
+  width: var(--split, 50vw);
   overflow: hidden;
 }
 

@@ -34,7 +34,7 @@ const textCompute = computed(() => {
   position: fixed;
   top: 0;
   left: 0;
-  width: 50vw; /* cover only the game pane */
+  width: var(--split, 50vw); /* cover only the game pane */
   height: 100%;
   background-color: rgba(0, 0, 0, .6);
   display: flex;

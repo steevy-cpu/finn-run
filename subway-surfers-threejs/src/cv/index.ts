@@ -27,7 +27,7 @@ const style = document.createElement('style');
 style.textContent = `
 #cv-panel {
     position: fixed; right: 0; top: 0; z-index: 9999;
-    width: 50vw; height: 100vh; background: #111418;
+    left: var(--split, 50vw); width: auto; height: 100vh; background: #111418;
     display: flex; flex-direction: column; overflow: hidden;
     font-family: system-ui, -apple-system, sans-serif; color: #e8eaed;
 }
@@ -80,11 +80,11 @@ style.textContent = `
 #cv-guide .ico { font-size: 22px; }
 #cv-guide small { display: block; font-size: 12.5px; font-weight: 500; color: #c5cad1; margin-top: 2px; }
 #cv-confetti {
-    position: fixed; left: 0; top: 0; width: 50vw; height: 100vh;
+    position: fixed; left: 0; top: 0; width: var(--split, 50vw); height: 100vh;
     z-index: 1600; pointer-events: none;
 }
 .cv-modal {
-    position: fixed; left: 0; top: 0; width: 50vw; height: 100vh; z-index: 1500;
+    position: fixed; left: 0; top: 0; width: var(--split, 50vw); height: 100vh; z-index: 1500;
     display: flex; align-items: center; justify-content: center;
     background: rgba(0, 0, 0, 0.55);
     font-family: system-ui, -apple-system, sans-serif; color: #e8eaed;
@@ -119,6 +119,18 @@ style.textContent = `
     background: #2a2f36; padding: 12px 14px; font-size: 18px; line-height: 1;
 }
 #cv-cam-retry[hidden] { display: none; }
+/* Drag handle between the game pane and the camera panel (sets --split). */
+#cv-splitter {
+    position: fixed; top: 0; height: 100vh; width: 12px; z-index: 1700;
+    left: calc(var(--split, 50vw) - 6px); cursor: col-resize; touch-action: none;
+    background: transparent;
+}
+#cv-splitter::before {
+    content: ""; position: absolute; left: 4px; top: 0; bottom: 0; width: 4px;
+    background: rgba(255,255,255,.18); border-radius: 2px; transition: background .12s;
+}
+#cv-splitter:hover::before, #cv-splitter.drag::before, #cv-splitter:focus-visible::before { background: #45cfff; }
+#cv-splitter:focus-visible { outline: none; }
 #cv-mimic-row {
     display: flex; align-items: center; gap: 8px; padding: 0 18px 6px;
     font-size: 14px; color: #9aa0a6;
@@ -141,7 +153,7 @@ style.textContent = `
 /* Catch cinematic overlay (opt-in ?catchVideo=1 with ?arturo=1): a DOM
    video over the GAME pane only; navy letterbox; camera panel untouched. */
 #cv-catch {
-    position: fixed; left: 0; top: 0; width: 50vw; height: 100vh; z-index: 1400;
+    position: fixed; left: 0; top: 0; width: var(--split, 50vw); height: 100vh; z-index: 1400;
     background: #071521; display: none; align-items: center; justify-content: center;
 }
 #cv-catch.on { display: flex; }
@@ -752,8 +764,7 @@ const engine = new PoseEngine({
                 `pose ${engine.fps} fps · ${Math.round(engine.inferMs)} ms`
                 + (engine.track?.locked ? ' · locked on player' : ' · searching')
                 + (mode === 'hands' ? ' · hands mode' : '')
-                + (LOW_POWER ? ' · low-power' : '')
-                + ` · ${window.innerWidth}×${window.innerHeight}@${(window.devicePixelRatio || 1).toFixed(1)}x`;
+                + (LOW_POWER ? ' · low-power' : '');
         }
         if (interpreter.debug.calibrating) {
             const pct = Math.min(99, Math.round(interpreter.debug.calibProgress * 100));
@@ -966,7 +977,7 @@ function updateGuide(landmarks: any) {
 function launchConfetti(durationMs = 2600) {
     const c = document.createElement('canvas');
     c.id = 'cv-confetti';
-    c.width = Math.floor(window.innerWidth / 2);
+    c.width = Math.floor((document.querySelector('.experience') as HTMLElement | null)?.clientWidth || window.innerWidth / 2);
     c.height = window.innerHeight;
     document.body.appendChild(c);
     const ctx = c.getContext('2d')!;
@@ -1230,6 +1241,45 @@ if (introHost) {
         showIntro();
     }
     (window as any).__cvIntro = {show: showIntro, hide: hideIntro, dispose: () => intro?.dispose()};
+}
+
+// ---------- Resizable split (game pane | camera panel) ----------
+// --split on <html> is the game pane width; every pane-wide layer reads it.
+// Dragging (or ←/→ on the handle) updates it live and notifies the game's
+// Sizes and the camera stage through the normal window resize path.
+{
+    const SPLIT_KEY = 'cv-split';
+    const root = document.documentElement;
+    const splitter = document.createElement('div');
+    splitter.id = 'cv-splitter';
+    splitter.setAttribute('role', 'separator');
+    splitter.setAttribute('aria-orientation', 'vertical');
+    splitter.setAttribute('aria-label', 'Resize game and camera panes');
+    splitter.tabIndex = 0;
+    document.body.appendChild(splitter);
+    const apply = (pct: number, persist = false) => {
+        pct = Math.min(70, Math.max(30, pct));
+        root.style.setProperty('--split', `${pct.toFixed(2)}vw`);
+        splitter.setAttribute('aria-valuenow', String(Math.round(pct)));
+        window.dispatchEvent(new Event('resize'));
+        if (persist) { try { localStorage.setItem(SPLIT_KEY, pct.toFixed(2)); } catch {} }
+    };
+    try { const saved = parseFloat(localStorage.getItem(SPLIT_KEY) || ''); if (saved >= 30 && saved <= 70) apply(saved); } catch {}
+    let dragging = false;
+    splitter.addEventListener('pointerdown', e => {
+        dragging = true; splitter.classList.add('drag'); splitter.setPointerCapture(e.pointerId); e.preventDefault();
+    });
+    splitter.addEventListener('pointermove', e => { if (dragging) apply(e.clientX / window.innerWidth * 100); });
+    const end = (e: PointerEvent) => { if (!dragging) return; dragging = false; splitter.classList.remove('drag'); apply(e.clientX / window.innerWidth * 100, true); };
+    splitter.addEventListener('pointerup', end);
+    splitter.addEventListener('pointercancel', end);
+    splitter.addEventListener('keydown', e => {
+        const cur = parseFloat(getComputedStyle(root).getPropertyValue('--split')) || 50;
+        if (e.key === 'ArrowLeft') { apply(cur - 2, true); e.preventDefault(); e.stopPropagation(); }
+        if (e.key === 'ArrowRight') { apply(cur + 2, true); e.preventDefault(); e.stopPropagation(); }
+        if (e.key === 'Home') { apply(50, true); e.preventDefault(); e.stopPropagation(); }
+    });
+    (window as any).__cvtest && ((window as any).__cvtest.split = apply);
 }
 
 $('cv-cam-retry').addEventListener('click', () => { startCamera(); });

@@ -12,9 +12,10 @@ export function createFinnIntro({ host, artUrl, onStart, onDismiss = () => {}, r
       <p class="frp-kicker"><span aria-hidden="true">↗</span> YOUR NEXT RUN STARTS HERE</p>
       <h1 class="frp-title">FINN <span>RUN</span></h1>
       <p class="frp-tagline">YOUR MOVES. FINN RUNS.</p>
-      <p class="frp-lead">Make your move.<br>Run the city.</p>
-      <p class="frp-copy">Dodge obstacles. Chase coins.<br>See how far you can go.</p>
-      <div class="frp-modes" aria-label="Available control modes"><span>Body Control</span><span>Hand Control</span></div>
+      <div class="frp-credits">
+        <p class="frp-credit"><span class="frp-credit-label">Created by</span><strong>Steeve A. Celestin</strong></p>
+        <p class="frp-credit frp-credit-club"><img class="frp-club-logo" src="/assets/images/mdc-robotics-logo.jpeg" alt="" decoding="async" draggable="false"><span><span class="frp-credit-label">With</span><strong>MDC AI and Robotics Club</strong></span></p>
+      </div>
       <button class="frp-start" type="button"><span>LET’S RUN</span><span aria-hidden="true">↗</span></button>
       <p class="frp-status" role="status" aria-live="polite"></p>
       <details class="frp-how"><summary>How to play</summary><ol><li>Choose Body Control or Hand Control in the camera panel.</li><li>Follow the camera prompts to calibrate.</li><li>Collect coins and dodge obstacles using your selected controls.</li></ol></details>

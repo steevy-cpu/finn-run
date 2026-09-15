@@ -17,7 +17,8 @@ Not booth-ready until this trial has been done on the real laptop with its real 
 | Low-power profile | available | off (auto on ARM Linux) | `cv-lowpower` (`?lowpower=1|0`) |
 | Control mode / calibration / tuning / nickname / leaderboard | — | Body Control | `cv-mode`, `cv-calibration-<mode>`, `cv-tuning-v4-<mode>`, `cv-player`, `cv-leaderboard` |
 | Camera denial → Retry camera (this pass) | added, verified headless (deny → message + focused Retry; grant → retry → running) | — | — |
-| Viewport readout in the stats chip (this pass) | added: `W×H@dpr` next to fps/ms | — | — |
+| Draggable split (2026-09-15) | handle between the panes, 30–70 %, ←/→/Home on the handle; persisted | 50 % | `cv-split` |
+| Landing snap (2026-09-15) | Finn rests exactly on the surface the ground ray found (fixes the sunk-into-the-floor runs after long frames) | — | — |
 
 `?crossings=1` (Phase 2 tunnel/station) is NOT persisted and stays off for the trial.
 
@@ -37,7 +38,7 @@ Calibration, tuning, control mode, nickname and leaderboard also persist per bro
 - [person] Title art likeness acceptable in context; LET'S RUN reachable from the booth's own resolution; Body/Hand chips read as labels (selection stays in the panel).
 
 ### 1. Fresh launch and camera permission
-- [person] Fresh profile → open the trial URL → loading screen → "Press New Game (you will calibrate first)"; stats chip shows `pose N fps · ms · searching · W×H@dpr`. Note the W×H@dpr readout (actual screen resolution).
+- [person] Fresh profile → open the trial URL → loading screen → "Press New Game (you will calibrate first)"; stats chip shows `pose N fps · ms · searching`. Note the screen resolution from the OS display settings.
 - [person] Deny the camera once: status reads "Camera blocked — allow the camera in the browser's address bar, then press Retry camera"; New Game/Calibrate disabled; `P` still starts a keyboard run. Allow the camera in the address bar → Retry camera → status returns to "Press New Game". [auto: verified]
 - [person] Camera busy (another app holding it) → "Camera busy…" → close the app → Retry camera.
 

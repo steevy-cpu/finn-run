@@ -37,3 +37,13 @@ html:not([data-ui="phase4"]) #cv-countdown.frp-countdown-value {
 html:not([data-ui="phase4"]) .cv-card h2.frp-results-heading {
     font-family: Impact, 'Arial Narrow', Arial, sans-serif; letter-spacing: .02em; font-size: 32px;
 }
+
+/* Credits block (replaces the pack's lead/copy/mode chips). */
+.frp-credits { display: flex; flex-direction: column; gap: 14px; margin: 6px 0 26px; }
+.frp-credit { margin: 0; display: flex; align-items: center; gap: 14px; }
+.frp-credit-label { display: block; font-size: 10px; letter-spacing: .22em; font-weight: 800; text-transform: uppercase; color: #9adbea; margin-bottom: 3px; }
+.frp-credit strong { display: block; font-size: clamp(20px, 3.2cqw, 28px); line-height: 1.1; font-weight: 800; letter-spacing: -.02em; color: #f8fcff; }
+.frp-club-logo { width: 64px; height: 64px; flex: none; border-radius: 14px; object-fit: cover; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+html[data-ui="phase4"] .frp-credit-label { color: var(--p4-cyan); }
+html[data-ui="phase4"] .frp-club-logo { border: 1px solid var(--p4-border); }
+@container (min-width: 900px) { .frp-club-logo { width: 84px; height: 84px; } }

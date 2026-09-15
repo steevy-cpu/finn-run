@@ -80,12 +80,12 @@ const intro0 = await evalJs(`JSON.stringify((() => { const T = window.__cvtest, 
         hudHidden: getComputedStyle(document.querySelector('.score_container')).visibility === 'hidden',
         inPane: el.parentElement === document.querySelector('.experience'),
         startEnabled: !start.disabled && /LET/.test(start.textContent), startFocused: document.activeElement === start,
-        chips: [...el.querySelectorAll('.frp-modes span')].map(c => c.textContent.trim()),
+        credits: /Steeve A\. Celestin/.test(el.textContent) && /MDC AI and Robotics Club/.test(el.textContent) && !!el.querySelector('.frp-club-logo') && !/Dodge obstacles/.test(el.textContent),
         startVisibleInPane: (() => { const r = start.getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight && r.right <= window.innerWidth / 2 + 1; })(),
         panelUsable: !document.getElementById('cv-newgame').disabled}; })())`).then(JSON.parse);
 check("intro: shown on entry in the game pane, mask + HUD hidden", intro0.present && intro0.visible && intro0.attr && intro0.maskHidden && intro0.hudHidden && intro0.inPane);
 check("intro: LET'S RUN enabled with the camera ready, focused, fully visible in the pane", intro0.startEnabled && intro0.startFocused && intro0.startVisibleInPane && intro0.panelUsable);
-check("intro: Body/Hand chips present", intro0.chips.join('|') === 'Body Control|Hand Control');
+check("intro: credits (Steeve A. Celestin, MDC AI and Robotics Club) with the club logo", intro0.credits);
 const intro1 = await evalJs(`JSON.stringify((() => { const T = window.__cvtest, el = T.intro.element; el.querySelector('.frp-dismiss').click();
     return {hidden: el.hidden, attr: document.documentElement.dataset.intro, maskVisible: getComputedStyle(document.querySelector('.game-mask')).visibility === 'visible',
         focus: document.activeElement === document.getElementById('cv-newgame'), started: T.control().gameStart}; })())`).then(JSON.parse);
@@ -810,6 +810,13 @@ check("ui: Body/Hand Control switch drives setMode + persists", ui.switchToHands
 check("ui: New Game dialog focuses input, Escape returns focus", ui.inputFocused && ui.focusReturned);
 check("ui: hidden dialog controls are not focusable", ui.hiddenNotFocusable);
 check("ui: dialogs are labelled role=dialog", ui.dialogAria);
+const split = await evalJs(`JSON.stringify((() => { const T = window.__cvtest, exp = document.querySelector('.experience'), panel = document.getElementById('cv-panel');
+    const w0 = exp.clientWidth; T.split(60); const w1 = exp.clientWidth; const p1 = panel.getBoundingClientRect().left;
+    const game = T.control().game; const sized = Math.abs(game.sizes.width - w1) < 2; const catchW = document.querySelector('.game-mask').getBoundingClientRect().width; // a visible pane-wide layer
+    T.split(50); const w2 = exp.clientWidth;
+    return {w0, w1, p1, sized, catchW, w2, handle: !!document.getElementById('cv-splitter') && document.getElementById('cv-splitter').getAttribute('role') === 'separator'}; })())`).then(JSON.parse);
+check("ui: draggable split resizes the game pane, panel, overlays and the renderer together", split.handle && Math.round(split.w1) === Math.round(window_w(split, 0.6)) && Math.round(split.p1) === Math.round(split.w1) && split.sized && Math.round(split.catchW) === Math.round(split.w1) && Math.round(split.w2) === Math.round(split.w0));
+function window_w(s, f) { return (s.w0 / 0.5) * f; }
 check("no uncaught exceptions / console errors during the run", consoleErrors.length === 0);
 if (consoleErrors.length) console.log("    errors:", consoleErrors.slice(0, 5).join(" | "));
 

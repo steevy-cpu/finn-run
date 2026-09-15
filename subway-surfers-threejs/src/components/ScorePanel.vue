@@ -31,7 +31,7 @@ const props = defineProps({
 
 <style scoped>
 .score_container {
-  width: 50vw; /* stay inside the game pane */
+  width: var(--split, 50vw); /* stay inside the game pane */
   height: 100vh;
   position: relative;
   z-index: 999;

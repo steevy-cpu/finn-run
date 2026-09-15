@@ -61,6 +61,14 @@ export class ControlPlayer extends EventEmitter {
     isAddPlane: boolean = false;
     fallingSpeed: number = 0; // 下降速度
     downCollide: boolean = false; // 角色是否着地
+    // Surface height under the character from the last DOWN ray, and how far
+    // the model root sits above its soles (measured from the bind pose). On
+    // landing the root snaps to groundY + restOffset: without this the rest
+    // height was wherever the last physics step happened to stop — a long
+    // frame during a respawn (model reload + scene rebuild) could leave the
+    // root below the rails, so Finn ran "merged into the floor".
+    groundY: number | null = null;
+    restOffset: number = 0.05;
 
     gameStatus: GAME_STATUS = GAME_STATUS.READY; // 比赛状态
     gameStart: boolean = false;
@@ -104,6 +112,7 @@ export class ControlPlayer extends EventEmitter {
         // 跳跃高度
         this.jumpHight = 3.15; // launch speed: apex ≈ 4 units, ≈0.85s airtime
         this.gameStart = false;
+        this.measureRestOffset();
         this.far = 2.5; // 人物身高
         this.raycasterDown = new THREE.Raycaster();
         this.raycasterFrontDown = new THREE.Raycaster();
@@ -294,6 +303,19 @@ handleLeftRightMove(delta: number) {
     // 上下移动控制
     handleUpdownMove() {
     }
+    private measureRestOffset() {
+        try {
+            this.model.updateMatrixWorld(true);
+            const box = new THREE.Box3(), mb = new THREE.Box3();
+            this.model.traverse((o: any) => {
+                if (!o.isMesh) return;
+                if (o.isSkinnedMesh) { o.computeBoundingBox(); mb.copy(o.boundingBox); } else { o.geometry.computeBoundingBox(); mb.copy(o.geometry.boundingBox); }
+                mb.applyMatrix4(o.matrixWorld); box.union(mb);
+            });
+            const offset = this.model.position.y - box.min.y;
+            if (isFinite(offset) && offset >= 0 && offset < 1.5) this.restOffset = offset;
+        } catch {}
+    }
     // 全部射线碰撞检测
     collideCheckAll() {
         const position = this.model.position.clone();
@@ -360,14 +382,17 @@ handleLeftRightMove(delta: number) {
                 if (!intersectPlane) {
                     return;
                 }
-                const c1 = this.raycasterDown.intersectObjects(
+                const h1 = this.raycasterDown.intersectObjects(
                     [intersectPlane, intersectObstacal]
-                )[0]?.object.name;
+                )[0];
+                const c1 = h1?.object.name;
                 this.raycasterDown.ray.origin = originDown;
-                const c2 = this.raycasterDown.intersectObjects(
+                const h2 = this.raycasterDown.intersectObjects(
                     [intersectPlane, intersectObstacal]
-                )[0]?.object.name;
+                )[0];
+                const c2 = h2?.object.name;
                 c1 || c2 ? (this.downCollide = true) : (this.downCollide = false);
+                this.groundY = (h1 || h2) ? (h1 || h2)!.point.y : null;
                 break;
             }
             case Side.FRONT: {
@@ -664,6 +689,13 @@ handleLeftRightMove(delta: number) {
         else {
             this.fallingSpeed = 0;
             this.physAcc = 0;
+            // Rest exactly on the surface the ray found (rails or a roof).
+            if (this.groundY !== null) {
+                const rest = this.groundY + this.restOffset;
+                const dy = rest - this.model.position.y;
+                if (dy > 0.0005 && dy < 1.5) this.model.position.y = rest;      // was sunk: lift out
+                else if (dy < -0.0005 && dy > -1.5) this.model.position.y = rest; // hovering: settle
+            }
         }
     }
 }
