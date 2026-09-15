@@ -7,8 +7,8 @@
         <div></div>
         <div></div>
       </div>
-      <div>Loading asset: {{ loadingData.url }}</div>
-      <div>Loaded {{ loadingData.itemsLoaded || 0 }}/{{ loadingData.itemsTotal || 0 }}</div>
+      <div class="frp-loading-label">Loading asset: {{ loadingData.url }}</div>
+      <div class="frp-loading-label">Loaded {{ loadingData.itemsLoaded || 0 }}/{{ loadingData.itemsTotal || 0 }}</div>
       <div v-if="loadingData.type === 'successLoad'">Loaded — one moment</div>
     </div>
     <GameGuide :show-mask="isReady && showGuide" :game-status="gameStatus" />
@@ -67,6 +67,7 @@ onMounted(() => {
   });
 });
 onUnmounted(() => {
+  (window as any).__cvIntro?.dispose?.(); // welcome screen owned by the cv layer
   const game = new Game(exp_canvas.value);
   game?.disposeGame();
 });

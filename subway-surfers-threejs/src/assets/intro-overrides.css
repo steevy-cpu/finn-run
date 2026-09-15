@@ -1,0 +1,39 @@
+/* Welcome screen (tonight's presentation pack) — integration overrides.
+   The pack's own selectors live in finn-presentation.css (unmodified). */
+
+/* While the intro is up it replaces the visual role of the pre-game mask
+   and the HUD in the game pane (both are fixed siblings above the pane).
+   visibility:hidden keeps their IDs/text for existing logic and tests and
+   makes nothing under the intro focusable. The camera panel is untouched. */
+html[data-intro="on"] .game-mask,
+html[data-intro="on"] .score_container { visibility: hidden; }
+.experience .frp-intro { z-index: 5; }
+
+/* Booth size: the title and LET'S RUN must be visible without scrolling at
+   a 720×900 pane (1440×900) and at 640×720 — tighten the art headroom. */
+.experience .frp-content { padding-top: min(24cqw, 176px); }
+.experience .frp-how { margin-top: 14px; }
+
+/* Phase 4 identity when that UI is on: same display face and tokens. */
+html[data-ui="phase4"] .frp-intro { font-family: var(--p4-body); background: var(--p4-bg); }
+html[data-ui="phase4"] .frp-title { font-family: var(--p4-display); letter-spacing: .02em; font-weight: 800; }
+html[data-ui="phase4"] .frp-title span,
+html[data-ui="phase4"] .frp-tagline,
+html[data-ui="phase4"] .frp-kicker { color: var(--p4-cyan); }
+html[data-ui="phase4"] .frp-kicker span,
+html[data-ui="phase4"] .frp-rule { color: var(--p4-gold); background-color: var(--p4-gold); }
+html[data-ui="phase4"] .frp-kicker span { background: none; }
+html[data-ui="phase4"] .frp-start { background: var(--p4-blue); color: var(--p4-bg); box-shadow: 0 5px 0 var(--p4-blue-deep); border-radius: var(--p4-radius-sm); }
+html[data-ui="phase4"] .frp-start:hover { background: var(--p4-cyan); }
+html[data-ui="phase4"] .frp-modes span { border-color: var(--p4-border); color: var(--p4-text); }
+html[data-ui="phase4"] .frp-intro :focus-visible { outline-color: var(--p4-cyan); }
+
+/* Optional pack skins for existing elements — original UI only; under
+   Phase 4 the phase4.css rules for the same elements stay authoritative. */
+html:not([data-ui="phase4"]) #cv-countdown.frp-countdown-value {
+    color: #fff; font-family: Impact, 'Arial Narrow', Arial, sans-serif;
+    text-shadow: 4px 5px 0 #006d92, 0 8px 30px #001c30;
+}
+html:not([data-ui="phase4"]) .cv-card h2.frp-results-heading {
+    font-family: Impact, 'Arial Narrow', Arial, sans-serif; letter-spacing: .02em; font-size: 32px;
+}

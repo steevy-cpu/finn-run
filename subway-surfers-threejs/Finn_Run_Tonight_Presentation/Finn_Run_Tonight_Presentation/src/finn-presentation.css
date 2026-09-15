@@ -1,0 +1,50 @@
+/* Host must be position:relative. All welcome selectors are namespaced. */
+.frp-intro { position:absolute; inset:0; z-index:30; overflow:auto; container-type:inline-size; color:#f8fcff; background:#051a28; font-family:Arial,Helvetica,sans-serif; isolation:isolate; text-align:left; }
+.frp-intro[hidden] { display:none !important; }
+.frp-intro *, .frp-intro *::before, .frp-intro *::after { box-sizing:border-box; }
+.frp-art { position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:-2; }
+.frp-art img { display:block; width:100%; height:auto; min-height:0; }
+.frp-art::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg,transparent 12%,rgba(5,26,40,.12) 27%,#051a28 53%); }
+.frp-content { position:relative; padding:clamp(22px,4cqw,42px); padding-top:min(30cqw,220px); min-height:100%; }
+.frp-kicker { margin:0 0 15px; font-size:10px; letter-spacing:.2em; font-weight:800; color:#9adbea; }
+.frp-kicker span { color:#ffc853; font-size:20px; vertical-align:middle; margin-right:8px; }
+.frp-title { margin:0; font-family:Impact,'Arial Narrow',Arial,sans-serif; font-size:clamp(52px,12cqw,100px); line-height:.96; font-weight:900; letter-spacing:-.025em; white-space:nowrap; }
+.frp-title span { color:#36d0f3; }
+.frp-tagline { margin:14px 0 24px; font-size:10px; line-height:1.4; letter-spacing:.27em; color:#36d0f3; font-weight:800; }
+.frp-lead { margin:0 0 12px; font-size:clamp(24px,4.8cqw,36px); line-height:1.06; font-weight:800; letter-spacing:-.03em; }
+.frp-copy { margin:0 0 20px; color:#c0d2dd; font-size:14px; line-height:1.55; }
+.frp-modes { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 20px; }
+.frp-modes span { border:1px solid #4d6b7a; padding:7px 11px; border-radius:100px; color:#e0eef5; font-size:11px; font-weight:700; }
+.frp-intro button { font:inherit; cursor:pointer; }
+.frp-start { display:flex; justify-content:space-between; align-items:center; gap:30px; width:min(100%,340px); padding:17px 22px; border:0; border-radius:10px; background:#36d0f3; color:#041923; font-size:15px !important; font-weight:900 !important; letter-spacing:.04em; box-shadow:0 5px 0 #147a99; }
+.frp-start:hover { background:#7ce7ff; }
+.frp-start:active { transform:translateY(2px); box-shadow:0 3px 0 #147a99; }
+.frp-start:disabled { opacity:.65; cursor:wait; }
+.frp-status { color:#ffd98c; font-size:12px; line-height:1.4; margin:12px 0 0; }
+.frp-status:empty { display:none; }
+.frp-how { margin:20px 0 10px; max-width:420px; font-size:12px; line-height:1.6; color:#d3e3eb; }
+.frp-how summary { cursor:pointer; width:fit-content; }
+.frp-how ol { margin:10px 0; padding-left:20px; }
+.frp-dismiss { padding:5px 0; background:none; border:0; color:#b4cedc; font-size:12px !important; }
+.frp-intro :focus-visible { outline:3px solid #ffd16b; outline-offset:5px; }
+.frp-rule { width:70px; height:3px; background:#ffbc51; margin-top:25px; }
+.frp-footer { margin:12px 0 0; font-size:9px; letter-spacing:.16em; color:#9bb9c8; }
+.frp-no-art { background:radial-gradient(ellipse at 90% 0%,#126d8a,transparent 65%),#051a28; }
+.frp-no-art .frp-art { display:none; }
+.frp-no-art .frp-content { padding-top:clamp(32px,10cqw,100px); }
+.frp-intro:not([hidden]) .frp-title, .frp-intro:not([hidden]) .frp-tagline { animation:frp-enter .65s ease-out both; }
+.frp-intro:not([hidden]) .frp-tagline { animation-delay:.08s; }
+@keyframes frp-enter { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+@container (min-width:900px) {
+  .frp-art img { width:100%; height:100%; object-fit:cover; object-position:70% center; }
+  .frp-art::after { background:linear-gradient(90deg,#051a28 0%,rgba(5,26,40,.85) 22%,rgba(5,26,40,.18) 52%,transparent 75%),linear-gradient(0deg,rgba(5,26,40,.7),transparent 25%); }
+  .frp-content { padding:clamp(35px,5cqw,100px); padding-top:clamp(50px,7cqw,130px); width:54%; }
+  .frp-title { font-size:clamp(80px,9.2cqw,156px); }
+  .frp-lead { font-size:clamp(28px,2.7cqw,42px); }
+}
+@media (prefers-reduced-motion:reduce) { .frp-intro *, .frp-intro *::before, .frp-intro *::after { animation:none !important; transition:none !important; } }
+/* Optional existing-element skins. Add classes; preserve IDs, events and text. */
+.frp-loading-card { background:#051a28; color:#f8fcff; border:1px solid #275468; border-radius:18px; padding:24px; font-family:Arial,sans-serif; box-shadow:0 16px 60px #0006; }
+.frp-loading-label { color:#63dbf7; font-size:11px; letter-spacing:.2em; font-weight:800; }
+.frp-countdown-value { color:#fff; font-family:Impact,'Arial Narrow',Arial,sans-serif; font-size:clamp(64px,14vw,160px); line-height:1; text-shadow:4px 5px 0 #006d92,0 8px 30px #001c30; }
+.frp-results-heading { font-family:Impact,'Arial Narrow',Arial,sans-serif; color:#fff; font-size:clamp(30px,5vw,54px); letter-spacing:.02em; }

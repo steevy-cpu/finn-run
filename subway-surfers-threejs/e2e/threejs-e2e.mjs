@@ -70,6 +70,27 @@ for (let i = 0; i < 90; i++) {
 }
 check("game + CV panel ready", ready);
 
+// 1b. Welcome screen (presentation pack): shown once on entry over the game
+// pane, replaces the mask/HUD visually, LET'S RUN enabled once the camera
+// (= New Game gate) is ready; "Go to game controls" only dismisses.
+const intro0 = await evalJs(`JSON.stringify((() => { const T = window.__cvtest, el = T.intro?.element; if (!el) return {present: false};
+    const start = el.querySelector('.frp-start'), dismiss = el.querySelector('.frp-dismiss');
+    return {present: true, visible: !el.hidden && el.getClientRects().length > 0, attr: document.documentElement.dataset.intro === 'on',
+        maskHidden: getComputedStyle(document.querySelector('.game-mask')).visibility === 'hidden',
+        hudHidden: getComputedStyle(document.querySelector('.score_container')).visibility === 'hidden',
+        inPane: el.parentElement === document.querySelector('.experience'),
+        startEnabled: !start.disabled && /LET/.test(start.textContent), startFocused: document.activeElement === start,
+        chips: [...el.querySelectorAll('.frp-modes span')].map(c => c.textContent.trim()),
+        startVisibleInPane: (() => { const r = start.getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight && r.right <= window.innerWidth / 2 + 1; })(),
+        panelUsable: !document.getElementById('cv-newgame').disabled}; })())`).then(JSON.parse);
+check("intro: shown on entry in the game pane, mask + HUD hidden", intro0.present && intro0.visible && intro0.attr && intro0.maskHidden && intro0.hudHidden && intro0.inPane);
+check("intro: LET'S RUN enabled with the camera ready, focused, fully visible in the pane", intro0.startEnabled && intro0.startFocused && intro0.startVisibleInPane && intro0.panelUsable);
+check("intro: Body/Hand chips present", intro0.chips.join('|') === 'Body Control|Hand Control');
+const intro1 = await evalJs(`JSON.stringify((() => { const T = window.__cvtest, el = T.intro.element; el.querySelector('.frp-dismiss').click();
+    return {hidden: el.hidden, attr: document.documentElement.dataset.intro, maskVisible: getComputedStyle(document.querySelector('.game-mask')).visibility === 'visible',
+        focus: document.activeElement === document.getElementById('cv-newgame'), started: T.control().gameStart}; })())`).then(JSON.parse);
+check("intro: Go to game controls dismisses, restores the mask, focuses New Game, starts nothing", intro1.hidden && !intro1.attr && intro1.maskVisible && intro1.focus && !intro1.started);
+
 // 2. Not started before calibration
 const pre = await evalJs(`JSON.stringify((() => {
     const ctl = window.__cvtest.control();
@@ -903,6 +924,51 @@ if (catchOn) {
     }
     const kept = await evalJs(`JSON.stringify({board: window.__cvtest.board.load().length > 0, status: /crashed|New Game/i.test(document.getElementById('cv-status').textContent)})`).then(JSON.parse);
     check("catch: leaderboard record and results text preserved", kept.board && kept.status);
+}
+
+// 14. Welcome screen paths: LET'S RUN → existing nickname prompt; camera-panel
+// New Game hides the intro; Escape dismisses; reduced motion → static title;
+// missing art → gradient fallback; no intro after a run/restart.
+{
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const w = await evalJs(`
+    (async () => {
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        const T = window.__cvtest, out = {};
+        document.getElementById('cv-board-close').click(); document.getElementById('cv-name-cancel').click();
+        out.notShownAfterRun = T.intro.element.hidden;
+        T.intro.show(); await sleep(50);
+        const before = T.control().gameStatus + ':' + T.control().gameStart;
+        T.intro.element.querySelector('.frp-start').click(); await sleep(50);
+        out.startOpensNamePrompt = T.intro.element.hidden && !document.getElementById('cv-name').hidden && !document.documentElement.dataset.intro;
+        out.noRunStarted = (T.control().gameStatus + ':' + T.control().gameStart) === before; // the prompt opened, nothing else changed
+        document.getElementById('cv-name-cancel').click();
+        T.intro.show(); await sleep(50);
+        document.getElementById('cv-newgame').click(); await sleep(50);
+        out.panelNewGameHidesIntro = T.intro.element.hidden && !document.getElementById('cv-name').hidden;
+        document.getElementById('cv-name-cancel').click();
+        T.intro.show(); await sleep(50);
+        T.intro.element.querySelector('.frp-start').dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); await sleep(50);
+        out.escapeDismisses = T.intro.element.hidden && document.activeElement === document.getElementById('cv-newgame');
+        // missing art → fallback class, controls still usable
+        T.intro.show(); await sleep(50);
+        const img = T.intro.element.querySelector('img');
+        await new Promise(r => { img.addEventListener('error', r, {once: true}); img.src = '/assets/images/does-not-exist.png'; });
+        out.missingArtFallback = T.intro.element.classList.contains('frp-no-art') && !T.intro.element.querySelector('.frp-start').disabled;
+        img.src = '/assets/images/finn-intro-hero.png';
+        return JSON.stringify(out);
+    })()
+    `).then(JSON.parse);
+    check("intro: not shown again after a run; LET'S RUN opens the existing nickname prompt without starting", w.notShownAfterRun && w.startOpensNamePrompt && w.noRunStarted);
+    check("intro: camera-panel New Game hides the intro first", w.panelNewGameHidesIntro);
+    check("intro: Escape dismisses to game controls", w.escapeDismisses);
+    check("intro: missing art falls back to the gradient with controls usable", w.missingArtFallback);
+    await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+    const rm = await evalJs(`getComputedStyle(window.__cvtest.intro.element.querySelector('.frp-title')).animationName`);
+    await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] });
+    const rm2 = await evalJs(`getComputedStyle(window.__cvtest.intro.element.querySelector('.frp-title')).animationName`);
+    check("intro: reduced motion gives a static title (animation only otherwise)", rm === 'none' && rm2 === 'frp-enter');
+    await evalJs(`window.__cvtest.intro.hide(); 'ok'`);
 }
 
 const shot = await send("Page.captureScreenshot", { format: "png" });

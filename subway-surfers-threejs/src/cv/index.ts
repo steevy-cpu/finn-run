@@ -11,6 +11,8 @@ import Game from '@/Game';
 import {roadLength} from '@/Game/environment';
 import {LOW_POWER} from '@/Game/perf';
 import {PURSUER, CATCH_VIDEO} from '@/Game/envart';
+// @ts-ignore — plain JS module (tonight's presentation pack, unmodified)
+import {createFinnIntro} from './FinnIntro.mjs';
 
 const KEY_LABELS: Record<string, string> = {a: '←', d: '→', w: '↑', s: '↓', p: 'P', r: 'R'};
 
@@ -181,7 +183,7 @@ panel.innerHTML = `
         <div id="cv-fit">
             <video id="cv-video" autoplay playsinline muted></video>
             <canvas id="cv-overlay"></canvas>
-            <div id="cv-countdown"></div>
+            <div id="cv-countdown" class="frp-countdown-value"></div>
         </div>
         <div id="cv-stats"></div>
         <div id="cv-guide"></div>
@@ -240,7 +242,7 @@ gameOverlays.innerHTML = `
     <div id="cv-board" class="cv-modal" hidden role="dialog" aria-modal="true" aria-labelledby="cv-board-title">
         <div class="cv-card">
             <div class="cv-eyebrow p4">Finn Run</div>
-            <h2 id="cv-board-title">Top 3</h2>
+            <h2 id="cv-board-title" class="frp-results-heading">Top 3</h2>
             <ol id="cv-board-list"></ol>
             <p id="cv-board-you"></p>
             <div class="cv-card-actions">
@@ -418,6 +420,7 @@ function escapeHtml(s: string) {
 
 // Nickname prompt → then calibrate (if needed) → countdown → run.
 function openNamePrompt() {
+    hideIntro();
     hideBoard();
     const input = $('cv-name-input') as HTMLInputElement;
     input.value = playerName;
@@ -563,6 +566,7 @@ const game = new (Game as any)();
 game.on('gameStatus', (status: string) => {
     setTimeout(syncModeUI, 0); // after the flags below settle
     if (status !== 'end') cancelCatch('status:' + status); // restart / fresh run cancels the cinematic
+    hideIntro(); // a run starting/restarting by any path leaves the welcome screen
     if (status === 'start') {
         gameStarted = true;
         gameEnded = false;
@@ -1106,6 +1110,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) cance
     get fx() { return game.fx; },
     get pursuer() { return game.pursuer; },
     startCamera,
+    get intro() { return intro ? {element: intro.element, show: (window as any).__cvIntro.show, hide: hideIntro, setReady: (v: boolean) => intro.setReady(v)} : null; },
     catch: {
         enabled: catchEnabled,
         get active() { return catchActive; },
@@ -1160,6 +1165,13 @@ async function startCamera() {
         engine.start();
         ($('cv-calibrate') as HTMLButtonElement).disabled = false;
         ($('cv-newgame') as HTMLButtonElement).disabled = false;
+        if (intro) {
+            intro.setReady(true); // LET'S RUN opens the same New Game flow
+            // The intro usually appears before the camera is up (focus went to
+            // the dismiss link); hand focus to the now-enabled start button.
+            const el = intro.element as HTMLElement;
+            if (!el.hidden && el.contains(document.activeElement)) (el.querySelector('.frp-start') as HTMLButtonElement)?.focus({preventScroll: true});
+        }
         if (restoreCalibration()) {
             $('cv-calibrate').textContent = 'Re-calibrate';
             setStatus('Calibration remembered — press New Game to play');
@@ -1180,5 +1192,45 @@ async function startCamera() {
         cameraStarting = false;
     }
 }
+// ---------- Welcome screen (presentation pack) ----------
+// Mounted once in the game pane wrapper beside the canvas; shown once on
+// page entry. LET'S RUN delegates to the existing New Game flow (nickname →
+// camera/calibration → countdown); "Go to game controls"/Escape only
+// dismiss. While visible, the pre-game mask and HUD are hidden via
+// <html data-intro="on"> (see intro-overrides.css); the camera panel is
+// never made inert.
+const introHost = document.querySelector('.experience') as HTMLElement | null;
+let intro: any = null;
+function hideIntro() {
+    if (!intro || intro.element.hidden) return;
+    intro.hide();
+    document.documentElement.removeAttribute('data-intro');
+}
+if (introHost) {
+    intro = createFinnIntro({
+        host: introHost,
+        artUrl: '/assets/images/finn-intro-hero.png',
+        ready: false, // flips when the camera is running = the New Game gate
+        onStart: () => { document.documentElement.removeAttribute('data-intro'); openNamePrompt(); },
+        onDismiss: () => {
+            document.documentElement.removeAttribute('data-intro');
+            const ng = $('cv-newgame') as HTMLButtonElement;
+            (ng.disabled ? $('cv-cam-retry') : ng).focus();
+        },
+    });
+    const showIntro = () => {
+        document.documentElement.setAttribute('data-intro', 'on');
+        intro.show();
+    };
+    // Show once the loading screen is gone (the game emits successLoad).
+    if (document.querySelector('.loading')) {
+        const onLoaded = (d: any) => { if (d?.type === 'successLoad') { game.off('progress', onLoaded); setTimeout(showIntro, 0); } };
+        game.on('progress', onLoaded);
+    } else {
+        showIntro();
+    }
+    (window as any).__cvIntro = {show: showIntro, hide: hideIntro, dispose: () => intro?.dispose()};
+}
+
 $('cv-cam-retry').addEventListener('click', () => { startCamera(); });
 startCamera();

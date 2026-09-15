@@ -32,6 +32,10 @@ Start the server inside `subway-surfers-threejs/` with `npm run serve` (serves `
 Calibration, tuning, control mode, nickname and leaderboard also persist per browser profile; a fresh Chrome profile (or clearing site data) is the only true fresh launch. The trial URL opts into unreviewed features (Phase 4 UI, Arturo, catch video) on purpose — they remain off by default in the code.
 
 ## Checklist
+### 0. Welcome screen (presentation pack, 2026-09-15)
+- [auto] Shown once on entry in the game pane; mask + HUD hidden underneath; LET'S RUN enabled and focused once the camera is up; LET'S RUN → the existing nickname prompt (no run starts); camera-panel New Game hides it; "Go to game controls"/Escape dismiss to the panel; missing art → navy gradient; reduced motion → static title; not shown again after a run. Captures: `shots/intro-split-pane-1440x900.png`, `shots/intro-fullscreen-1920x1080.png`, `shots/intro-split-pane-1280x720.png` (button bottom at 595 / 586 / 559 px — no scrolling needed).
+- [person] Title art likeness acceptable in context; LET'S RUN reachable from the booth's own resolution; Body/Hand chips read as labels (selection stays in the panel).
+
 ### 1. Fresh launch and camera permission
 - [person] Fresh profile → open the trial URL → loading screen → "Press New Game (you will calibrate first)"; stats chip shows `pose N fps · ms · searching · W×H@dpr`. Note the W×H@dpr readout (actual screen resolution).
 - [person] Deny the camera once: status reads "Camera blocked — allow the camera in the browser's address bar, then press Retry camera"; New Game/Calibrate disabled; `P` still starts a keyboard run. Allow the camera in the address bar → Retry camera → status returns to "Press New Game". [auto: verified]

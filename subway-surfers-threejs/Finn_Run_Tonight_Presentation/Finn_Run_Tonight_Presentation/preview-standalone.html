@@ -1,0 +1,151 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Finn Run — welcome preview</title><style>/* Host must be position:relative. All welcome selectors are namespaced. */
+.frp-intro { position:absolute; inset:0; z-index:30; overflow:auto; container-type:inline-size; color:#f8fcff; background:#051a28; font-family:Arial,Helvetica,sans-serif; isolation:isolate; text-align:left; }
+.frp-intro[hidden] { display:none !important; }
+.frp-intro *, .frp-intro *::before, .frp-intro *::after { box-sizing:border-box; }
+.frp-art { position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:-2; }
+.frp-art img { display:block; width:100%; height:auto; min-height:0; }
+.frp-art::after { content:""; position:absolute; inset:0; background:linear-gradient(180deg,transparent 12%,rgba(5,26,40,.12) 27%,#051a28 53%); }
+.frp-content { position:relative; padding:clamp(22px,4cqw,42px); padding-top:min(30cqw,220px); min-height:100%; }
+.frp-kicker { margin:0 0 15px; font-size:10px; letter-spacing:.2em; font-weight:800; color:#9adbea; }
+.frp-kicker span { color:#ffc853; font-size:20px; vertical-align:middle; margin-right:8px; }
+.frp-title { margin:0; font-family:Impact,'Arial Narrow',Arial,sans-serif; font-size:clamp(52px,12cqw,100px); line-height:.96; font-weight:900; letter-spacing:-.025em; white-space:nowrap; }
+.frp-title span { color:#36d0f3; }
+.frp-tagline { margin:14px 0 24px; font-size:10px; line-height:1.4; letter-spacing:.27em; color:#36d0f3; font-weight:800; }
+.frp-lead { margin:0 0 12px; font-size:clamp(24px,4.8cqw,36px); line-height:1.06; font-weight:800; letter-spacing:-.03em; }
+.frp-copy { margin:0 0 20px; color:#c0d2dd; font-size:14px; line-height:1.55; }
+.frp-modes { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 20px; }
+.frp-modes span { border:1px solid #4d6b7a; padding:7px 11px; border-radius:100px; color:#e0eef5; font-size:11px; font-weight:700; }
+.frp-intro button { font:inherit; cursor:pointer; }
+.frp-start { display:flex; justify-content:space-between; align-items:center; gap:30px; width:min(100%,340px); padding:17px 22px; border:0; border-radius:10px; background:#36d0f3; color:#041923; font-size:15px !important; font-weight:900 !important; letter-spacing:.04em; box-shadow:0 5px 0 #147a99; }
+.frp-start:hover { background:#7ce7ff; }
+.frp-start:active { transform:translateY(2px); box-shadow:0 3px 0 #147a99; }
+.frp-start:disabled { opacity:.65; cursor:wait; }
+.frp-status { color:#ffd98c; font-size:12px; line-height:1.4; margin:12px 0 0; }
+.frp-status:empty { display:none; }
+.frp-how { margin:20px 0 10px; max-width:420px; font-size:12px; line-height:1.6; color:#d3e3eb; }
+.frp-how summary { cursor:pointer; width:fit-content; }
+.frp-how ol { margin:10px 0; padding-left:20px; }
+.frp-dismiss { padding:5px 0; background:none; border:0; color:#b4cedc; font-size:12px !important; }
+.frp-intro :focus-visible { outline:3px solid #ffd16b; outline-offset:5px; }
+.frp-rule { width:70px; height:3px; background:#ffbc51; margin-top:25px; }
+.frp-footer { margin:12px 0 0; font-size:9px; letter-spacing:.16em; color:#9bb9c8; }
+.frp-no-art { background:radial-gradient(ellipse at 90% 0%,#126d8a,transparent 65%),#051a28; }
+.frp-no-art .frp-art { display:none; }
+.frp-no-art .frp-content { padding-top:clamp(32px,10cqw,100px); }
+.frp-intro:not([hidden]) .frp-title, .frp-intro:not([hidden]) .frp-tagline { animation:frp-enter .65s ease-out both; }
+.frp-intro:not([hidden]) .frp-tagline { animation-delay:.08s; }
+@keyframes frp-enter { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+@container (min-width:900px) {
+  .frp-art img { width:100%; height:100%; object-fit:cover; object-position:70% center; }
+  .frp-art::after { background:linear-gradient(90deg,#051a28 0%,rgba(5,26,40,.85) 22%,rgba(5,26,40,.18) 52%,transparent 75%),linear-gradient(0deg,rgba(5,26,40,.7),transparent 25%); }
+  .frp-content { padding:clamp(35px,5cqw,100px); padding-top:clamp(50px,7cqw,130px); width:54%; }
+  .frp-title { font-size:clamp(80px,9.2cqw,156px); }
+  .frp-lead { font-size:clamp(28px,2.7cqw,42px); }
+}
+@media (prefers-reduced-motion:reduce) { .frp-intro *, .frp-intro *::before, .frp-intro *::after { animation:none !important; transition:none !important; } }
+/* Optional existing-element skins. Add classes; preserve IDs, events and text. */
+.frp-loading-card { background:#051a28; color:#f8fcff; border:1px solid #275468; border-radius:18px; padding:24px; font-family:Arial,sans-serif; box-shadow:0 16px 60px #0006; }
+.frp-loading-label { color:#63dbf7; font-size:11px; letter-spacing:.2em; font-weight:800; }
+.frp-countdown-value { color:#fff; font-family:Impact,'Arial Narrow',Arial,sans-serif; font-size:clamp(64px,14vw,160px); line-height:1; text-shadow:4px 5px 0 #006d92,0 8px 30px #001c30; }
+.frp-results-heading { font-family:Impact,'Arial Narrow',Arial,sans-serif; color:#fff; font-size:clamp(30px,5vw,54px); letter-spacing:.02em; }
+</style><style>
+html,body{margin:0;height:100%;background:#07131e;color:#e9f7ff;font:14px Arial} body{display:flex;flex-direction:column}header{padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px}header button{background:#36d0f3;color:#051a28;border:0;border-radius:6px;padding:9px 15px;font-weight:bold;cursor:pointer} main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,1fr);gap:2px;padding:0 12px 12px}#game{position:relative;overflow:hidden;border-radius:16px;background:#0c2431;min-height:460px}aside{padding:30px;background:#0b2330;border-radius:16px;display:flex;flex-direction:column;gap:18px}aside h2{margin:0;font-size:25px} .camera{flex:1;min-height:160px;border:1px solid #375a6a;border-radius:14px;background:#071722;display:grid;place-content:center;color:#a5c7d5;text-align:center;line-height:1.6}.note{color:#a5c7d5;line-height:1.6}#demo-result{padding:45px;line-height:1.8}body.wide main{grid-template-columns:1fr}body.wide aside{display:none}@media(max-width:650px){main{grid-template-columns:1fr}aside{display:none}}
+</style></head><body><header><span>INTRO PREVIEW • no camera requested</span><button id="layout">Toggle full game view</button></header><main><div id="game"><div id="demo-result"><h2>Existing game flow resumes here.</h2><p>The preview does not start calibration or gameplay.</p><button id="reopen">Replay intro</button></div></div><aside><h2>FINN RUN</h2><p class="note">The real game's camera panel remains available alongside the intro.</p><div class="camera">Camera panel placeholder<br>No webcam access in this preview.</div><p class="note">Body Control &nbsp; / &nbsp; Hand Control<br>Calibration and control logic stay in the existing game.</p></aside></main><script type="module">
+/** DOM-only welcome screen. Import finn-presentation.css once. No game loop. */
+function createFinnIntro({ host, artUrl, onStart, onDismiss = () => {}, ready = true }) {
+  if (!host || typeof onStart !== 'function') throw new TypeError('host and onStart are required');
+  let disposed = false, starting = false, enabled = Boolean(ready), previousFocus;
+  const root = document.createElement('section');
+  root.className = 'frp-intro';
+  root.setAttribute('aria-label', 'Welcome to Finn Run');
+  root.hidden = true;
+  root.innerHTML = `
+    <div class="frp-art" aria-hidden="true"><img alt="" decoding="async" draggable="false"></div>
+    <div class="frp-content">
+      <p class="frp-kicker"><span aria-hidden="true">↗</span> YOUR NEXT RUN STARTS HERE</p>
+      <h1 class="frp-title">FINN <span>RUN</span></h1>
+      <p class="frp-tagline">YOUR MOVES. FINN RUNS.</p>
+      <p class="frp-lead">Make your move.<br>Run the city.</p>
+      <p class="frp-copy">Dodge obstacles. Chase coins.<br>See how far you can go.</p>
+      <div class="frp-modes" aria-label="Available control modes"><span>Body Control</span><span>Hand Control</span></div>
+      <button class="frp-start" type="button"><span>LET’S RUN</span><span aria-hidden="true">↗</span></button>
+      <p class="frp-status" role="status" aria-live="polite"></p>
+      <details class="frp-how"><summary>How to play</summary><ol><li>Choose Body Control or Hand Control in the camera panel.</li><li>Follow the camera prompts to calibrate.</li><li>Collect coins and dodge obstacles using your selected controls.</li></ol></details>
+      <button class="frp-dismiss" type="button">Go to game controls <span aria-hidden="true">→</span></button>
+      <div class="frp-rule" aria-hidden="true"></div>
+      <p class="frp-footer">ONE CITY. YOUR NEXT HIGH SCORE.</p>
+    </div>`;
+  const image = root.querySelector('img'), start = root.querySelector('.frp-start');
+  const status = root.querySelector('.frp-status'), dismiss = root.querySelector('.frp-dismiss');
+  const hide = ({ restoreFocus = false } = {}) => {
+    if (disposed) return;
+    root.hidden = true;
+    if (restoreFocus && previousFocus?.isConnected) previousFocus.focus();
+  };
+  function updateReady() {
+    start.disabled = !enabled || starting;
+    start.querySelector('span').textContent = enabled ? 'LET’S RUN' : 'GETTING READY…';
+    status.textContent = enabled ? '' : 'Loading the game. Controls are still available.';
+  }
+  function begin() {
+    if (disposed || starting || !enabled || root.hidden) return;
+    starting = true;
+    start.disabled = true;
+    hide();
+    // Synchronous invocation preserves the button's user-activation context.
+    try {
+      Promise.resolve(onStart()).then(() => {
+        if (!disposed) { starting = false; updateReady(); }
+      }, recover);
+    } catch (error) { recover(error); }
+  }
+  function recover(error) {
+    if (disposed) return;
+    starting = false;
+    root.hidden = false;
+    updateReady();
+    status.textContent = 'Could not start. Try again or open the game controls.';
+    start.focus();
+    console.error('Finn intro start callback failed:', error);
+  }
+  function leave() { hide({ restoreFocus: true }); onDismiss(); }
+  function onKey(event) {
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); leave(); }
+  }
+  function artFailed() { root.classList.add('frp-no-art'); }
+  image.addEventListener('error', artFailed);
+  if (artUrl) image.src = artUrl; else artFailed();
+  start.addEventListener('click', begin);
+  dismiss.addEventListener('click', leave);
+  root.addEventListener('keydown', onKey);
+  host.append(root);
+  updateReady();
+  return {
+    element: root,
+    show({ focus = true } = {}) {
+      if (disposed || starting) return;
+      previousFocus = document.activeElement;
+      root.hidden = false;
+      if (focus) (enabled ? start : dismiss).focus({ preventScroll: true });
+    },
+    hide,
+    setReady(value) { if (!disposed) { enabled = Boolean(value); updateReady(); } },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      image.removeEventListener('error', artFailed);
+      start.removeEventListener('click', begin);
+      dismiss.removeEventListener('click', leave);
+      root.removeEventListener('keydown', onKey);
+      root.remove();
+    }
+  };
+}
+
+let starts=0;
+const intro=createFinnIntro({host:document.querySelector('#game'),artUrl:'assets/finn-intro-hero.png',onStart(){starts++;document.querySelector('#demo-result h2').textContent='Existing start callback invoked '+starts+' time(s).';document.querySelector('#reopen').focus();},onDismiss(){document.querySelector('#reopen').focus();}});
+intro.show({focus:false});
+document.querySelector('#reopen').onclick=()=>intro.show();
+document.querySelector('#layout').onclick=()=>document.body.classList.toggle('wide');
+window.introPreview={intro,get starts(){return starts;}};
+</script></body></html>
