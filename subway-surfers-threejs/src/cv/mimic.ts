@@ -56,7 +56,7 @@ export class ArmMimic {
                 this.bones.set(obj.name, obj as THREE.Bone);
             }
         });
-        for (const {bone, child} of ALL_CHAIN) {
+        for (const {bone, child} of ARM_CHAIN) {
             const b = this.bones.get(bone);
             const c = this.bones.get(child);
             if (b && c) {
