@@ -335,6 +335,20 @@ window.addEventListener('resize', layoutStage);
 $('cv-video').addEventListener('loadedmetadata', layoutStage);
 layoutStage();
 
+// Frames the camera actually delivers per second (requestVideoFrameCallback),
+// independent of inference: tells "camera-limited" from "compute-limited".
+let camFps = 0;
+{
+    const v = $('cv-video') as any;
+    let n = 0, at = performance.now();
+    const tick = () => {
+        n++;
+        const now = performance.now();
+        if (now - at >= 1000) { camFps = Math.round(n * 1000 / (now - at)); n = 0; at = now; }
+        v.requestVideoFrameCallback?.(tick);
+    };
+    v.requestVideoFrameCallback?.(tick);
+}
 let keyFlashTimer: ReturnType<typeof setTimeout>;
 function flashKey(key: string) {
     const el = $('cv-key');
@@ -814,7 +828,7 @@ const engine = new PoseEngine({
         if (landmarksAt - lastStatsAt > 500) {
             lastStatsAt = landmarksAt;
             $('cv-stats').textContent =
-                `pose ${engine.fps} fps · ${Math.round(engine.inferMs)} ms · game ${game.fps} fps`
+                `cam ${camFps} fps · pose ${engine.fps} fps · ${Math.round(engine.inferMs)} ms · game ${game.fps} fps`
                 + (engine.track?.locked ? ' · locked on player' : ' · searching')
                 + (mode === 'hands' ? ' · hands mode' : '')
                 + (LOW_POWER ? ' · low-power' : '');
