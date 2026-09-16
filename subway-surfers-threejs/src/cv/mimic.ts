@@ -18,15 +18,10 @@ const ARM_CHAIN = [
     {bone: 'mixamorigRightForeArm', child: 'mixamorigRightHand', a: 14, b: 16},
 ];
 
-// Legs follow too, but only pre-game — during the run they belong to the
-// run animation. Landmarks: 23/24 hips, 25/26 knees, 27/28 ankles.
-const LEG_CHAIN = [
-    {bone: 'mixamorigLeftUpLeg', child: 'mixamorigLeftLeg', a: 23, b: 25},
-    {bone: 'mixamorigLeftLeg', child: 'mixamorigLeftFoot', a: 25, b: 27},
-    {bone: 'mixamorigRightUpLeg', child: 'mixamorigRightLeg', a: 24, b: 26},
-    {bone: 'mixamorigRightLeg', child: 'mixamorigRightFoot', a: 26, b: 28},
-];
-const ALL_CHAIN = [...ARM_CHAIN, ...LEG_CHAIN];
+// Legs are NOT mimicked (Steeve, 2026-09-15): the pose model's knee/ankle
+// points are noisy from a front camera and produced impossible leg poses.
+// Pre-game and in-run alike, only the arms follow the player; the legs keep
+// the bind pose pre-game and the run/jump clips during the run.
 
 // Only mimic while these animations play; jump/roll/die keep both arms.
 const MIMIC_STATUSES = new Set(['run', 'dance', 'idle']);
@@ -85,7 +80,7 @@ export class ArmMimic {
         model.updateWorldMatrix(true, true);
 
         const mirrored = FULL_BODY_STATUSES.has(status); // facing the camera
-        const chains = mirrored && !this.armsOnly ? ALL_CHAIN : ARM_CHAIN;
+        const chains = ARM_CHAIN; // arms only in every mode
         for (const {bone: chainBone, a, b} of chains) {
             const boneName = mirrored ? swapSide(chainBone) : chainBone;
             const bone = this.bones.get(boneName);

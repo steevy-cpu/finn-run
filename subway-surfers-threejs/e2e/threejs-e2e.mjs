@@ -127,7 +127,7 @@ check("no intro dance animation pre-game", !pre.danceRunning);
 check("character faces the camera pre-game", pre.forwardZ > 0.9);
 check("theme music silent pre-game", pre.themePaused);
 
-// 2b. Pre-game full-body mimicry: legs follow only in pre-game status.
+// 2b. Mimicry is arms-only: legs never follow the player (pre-game or in-run).
 const legs = await evalJs(`
 (() => {
     const T = window.__cvtest;
@@ -160,7 +160,7 @@ const legs = await evalJs(`
 })()
 `);
 check("legs untouched during 'run' status", legs.hasLegBone && !legs.runMoved);
-check("legs mimic in pre-game status", legs.hasLegBone && legs.danceMoved);
+check("legs never mimicked, pre-game included (arms only)", legs.hasLegBone && !legs.danceMoved);
 
 // 3. Calibrate via seam → run starts
 await evalJs(`
