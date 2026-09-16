@@ -119,6 +119,10 @@ style.textContent = `
     background: #2a2f36; padding: 12px 14px; font-size: 18px; line-height: 1;
 }
 #cv-cam-retry[hidden] { display: none; }
+#cv-tuning select { flex: 1; min-width: 0; font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid #3a3f47; background: #1b1f25; color: #e8eaed; }
+.cv-note { display: block; font-size: 12px; color: #9aa0a6; margin-top: 4px; line-height: 1.35; }
+.cv-btn-small { padding: 8px 14px; font-size: 14px; margin-top: 4px; }
+#cv-board-reset.arm, #cv-board-reset2.arm { background: #ff5252; color: #fff; }
 /* Drag handle between the game pane and the camera panel (sets --split). */
 #cv-splitter {
     position: fixed; top: 0; height: 100vh; width: 12px; z-index: 1700;
@@ -227,6 +231,23 @@ panel.innerHTML = `
         <div class="cv-sec p4">Effects</div>
         <label class="cv-check"><input type="checkbox" id="cv-fx" checked> Effects (coin sparkle, jump &amp; landing dust)</label>
         <label class="cv-check"><input type="checkbox" id="cv-fx-reduced"> Reduced effects (quieter ring, no dust)</label>
+        <div class="cv-sec p4">Camera</div>
+        <label>Device
+            <select id="cv-cam-device"></select>
+        </label>
+        <label>Resolution / fps
+            <select id="cv-cam-res">
+                <option value="1280x720@60">1280×720 @ 60 (recommended)</option>
+                <option value="1280x720@30">1280×720 @ 30</option>
+                <option value="1920x1080@30">1920×1080 @ 30</option>
+                <option value="640x360@30">640×360 @ 30 (low power)</option>
+            </select>
+        </label>
+        <label class="cv-check"><input type="checkbox" id="cv-cam-lock"> Lock exposure (stops auto-exposure swings outdoors)</label>
+        <div id="cv-cam-info" class="cv-note"></div>
+        <div class="cv-sec p4">Booth</div>
+        <button id="cv-board-reset" class="cv-btn cv-btn-secondary cv-btn-small" type="button">Reset leaderboard</button>
+        <span id="cv-board-reset-note" class="cv-note"></span>
     </div>
 `;
 document.body.appendChild(panel);
@@ -258,6 +279,7 @@ gameOverlays.innerHTML = `
             <ol id="cv-board-list"></ol>
             <p id="cv-board-you"></p>
             <div class="cv-card-actions">
+                <button id="cv-board-reset2" class="cv-btn cv-btn-secondary cv-btn-small" type="button" title="Clear every saved score">Reset</button>
                 <button id="cv-board-close" class="cv-btn cv-btn-secondary">Close</button>
                 <button id="cv-board-newgame" class="cv-btn">New Game</button>
             </div>
@@ -1121,6 +1143,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) cance
     get fx() { return game.fx; },
     get pursuer() { return game.pursuer; },
     startCamera,
+    camera: {switchDevice: switchCameraDevice, applyPreset: applyCameraPreset, lockExposure, refresh: refreshCameraList, track: camTrack},
+    resetBoard: () => { saveBoard([]); },
     get intro() { return intro ? {element: intro.element, show: (window as any).__cvIntro.show, hide: hideIntro, setReady: (v: boolean) => intro.setReady(v)} : null; },
     catch: {
         enabled: catchEnabled,
@@ -1176,6 +1200,7 @@ async function startCamera() {
         engine.start();
         ($('cv-calibrate') as HTMLButtonElement).disabled = false;
         ($('cv-newgame') as HTMLButtonElement).disabled = false;
+        applySavedCameraSettings().catch(() => {});
         if (intro) {
             intro.setReady(true); // LET'S RUN opens the same New Game flow
             // The intro usually appears before the camera is up (focus went to
@@ -1203,6 +1228,145 @@ async function startCamera() {
         cameraStarting = false;
     }
 }
+// ---------- Camera settings (device / resolution+fps / exposure lock) ----------
+// The engine keeps reading the same <video>; we only swap or re-constrain the
+// stream behind it and resize the overlay canvas. A changed aspect ratio
+// invalidates the calibration (its units), so we ask for a re-calibration.
+const CAM_DEV_KEY = 'cv-cam-device', CAM_RES_KEY = 'cv-cam-res', CAM_LOCK_KEY = 'cv-cam-lock';
+const camDevice = $('cv-cam-device') as HTMLSelectElement;
+const camRes = $('cv-cam-res') as HTMLSelectElement;
+const camLock = $('cv-cam-lock') as HTMLInputElement;
+const camInfo = $('cv-cam-info');
+function camTrack(): MediaStreamTrack | null {
+    const s = ($('cv-video') as HTMLVideoElement).srcObject as MediaStream | null;
+    return s?.getVideoTracks()[0] || null;
+}
+function parseRes(v: string) { const m = /^(\d+)x(\d+)@(\d+)$/.exec(v); return m ? {width: +m[1], height: +m[2], fps: +m[3]} : {width: 1280, height: 720, fps: 60}; }
+async function refreshCameraList() {
+    try {
+        const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+        const current = camTrack()?.getSettings().deviceId;
+        camDevice.innerHTML = devs.map((d, i) => `<option value="${d.deviceId}">${escapeHtml(d.label || `Camera ${i + 1}`)}</option>`).join('') || '<option value="">(no camera)</option>';
+        if (current) camDevice.value = current;
+    } catch {}
+}
+function updateCamInfo() {
+    const t = camTrack();
+    if (!t) { camInfo.textContent = 'No camera stream.'; return; }
+    const s = t.getSettings() as any;
+    const caps = (t.getCapabilities ? t.getCapabilities() : {}) as any;
+    const canLock = Array.isArray(caps.exposureMode) && caps.exposureMode.includes('manual');
+    camLock.disabled = !canLock;
+    camLock.checked = s.exposureMode === 'manual';
+    camInfo.textContent = `${t.label || 'camera'} · ${s.width}×${s.height} @ ${Math.round(s.frameRate || 0)} fps · exposure ${s.exposureMode || 'n/a'}`
+        + (canLock ? '' : ' (lock not supported by this camera in this browser)');
+}
+async function afterStreamChange() {
+    const v = $('cv-video') as HTMLVideoElement;
+    for (let i = 0; i < 20 && !v.videoWidth; i++) await new Promise(r => setTimeout(r, 50));
+    engine.canvas.width = v.videoWidth; engine.canvas.height = v.videoHeight;
+    const aspect = (v.videoWidth / v.videoHeight) || 1;
+    if (Math.abs(aspect - interpreter.opts.aspect) > 0.01) {
+        interpreter.opts.aspect = aspect;
+        interpreter.calibrated = false;
+        setStatus('Camera changed — press Calibrate (or New Game) to calibrate again');
+    }
+    layoutStage();
+    updateCamInfo();
+    refreshCameraList();
+}
+async function switchCameraDevice(deviceId: string) {
+    const v = $('cv-video') as HTMLVideoElement;
+    const {width, height, fps} = parseRes(camRes.value);
+    const old = v.srcObject as MediaStream | null;
+    old?.getTracks().forEach(t => t.stop());
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({video: {deviceId: {exact: deviceId}, width: {ideal: width}, height: {ideal: height}, frameRate: {ideal: fps}}, audio: false});
+        v.srcObject = stream;
+        await new Promise<void>(r => { v.onloadedmetadata = () => r(); });
+        await v.play();
+        try { localStorage.setItem(CAM_DEV_KEY, deviceId); } catch {}
+    } catch (err: any) {
+        setStatus('Could not open that camera: ' + (err?.message || err));
+        try { // fall back to the engine's default request
+            const stream = await navigator.mediaDevices.getUserMedia({video: {width: {ideal: width}, height: {ideal: height}, frameRate: {ideal: fps}}, audio: false});
+            v.srcObject = stream; await v.play();
+        } catch {}
+    }
+    await afterStreamChange();
+    if (camLock.checked) await lockExposure(true);
+}
+async function applyCameraPreset(value: string) {
+    const t = camTrack(); if (!t) return;
+    const {width, height, fps} = parseRes(value);
+    try { await t.applyConstraints({width: {ideal: width}, height: {ideal: height}, frameRate: {ideal: fps}}); } catch (err: any) { setStatus('Camera preset not accepted: ' + (err?.message || err)); }
+    try { localStorage.setItem(CAM_RES_KEY, value); } catch {}
+    await new Promise(r => setTimeout(r, 150));
+    await afterStreamChange();
+}
+async function lockExposure(on: boolean) {
+    const t = camTrack(); if (!t) return false;
+    const caps = (t.getCapabilities ? t.getCapabilities() : {}) as any;
+    if (!Array.isArray(caps.exposureMode) || !caps.exposureMode.includes('manual')) { updateCamInfo(); return false; }
+    try {
+        if (on) {
+            const cur = (t.getSettings() as any).exposureTime;
+            const adv: any = {exposureMode: 'manual'};
+            if (cur && caps.exposureTime) adv.exposureTime = Math.min(caps.exposureTime.max, Math.max(caps.exposureTime.min, cur));
+            await t.applyConstraints({advanced: [adv as any]});
+        } else {
+            await t.applyConstraints({advanced: [{exposureMode: 'continuous'} as any]});
+        }
+        try { localStorage.setItem(CAM_LOCK_KEY, on ? '1' : '0'); } catch {}
+    } catch (err: any) { setStatus('Exposure lock failed: ' + (err?.message || err)); }
+    updateCamInfo();
+    return (camTrack()?.getSettings() as any)?.exposureMode === 'manual';
+}
+camDevice.addEventListener('change', () => { if (camDevice.value) switchCameraDevice(camDevice.value); });
+camRes.addEventListener('change', () => applyCameraPreset(camRes.value));
+camLock.addEventListener('change', () => lockExposure(camLock.checked));
+try { navigator.mediaDevices.addEventListener('devicechange', refreshCameraList); } catch {}
+try { const savedRes = localStorage.getItem(CAM_RES_KEY); if (savedRes) camRes.value = savedRes; } catch {}
+// Applied once the engine's own camera start succeeds (see startCamera):
+async function applySavedCameraSettings() {
+    await refreshCameraList();
+    let savedDev = ''; try { savedDev = localStorage.getItem(CAM_DEV_KEY) || ''; } catch {}
+    const current = camTrack()?.getSettings().deviceId;
+    if (savedDev && savedDev !== current && [...camDevice.options].some(o => o.value === savedDev)) {
+        camDevice.value = savedDev;
+        await switchCameraDevice(savedDev);
+    } else {
+        let savedRes = ''; try { savedRes = localStorage.getItem(CAM_RES_KEY) || ''; } catch {}
+        if (savedRes) await applyCameraPreset(savedRes); else updateCamInfo();
+        let lock = false; try { lock = localStorage.getItem(CAM_LOCK_KEY) === '1'; } catch {}
+        if (lock) await lockExposure(true);
+    }
+}
+
+// ---------- Booth: reset the leaderboard (two-step confirm, no dialogs) ----------
+{
+    let armTimer: ReturnType<typeof setTimeout> | null = null;
+    const buttons = [$('cv-board-reset'), $('cv-board-reset2')] as HTMLButtonElement[];
+    const note = $('cv-board-reset-note');
+    const disarm = () => { for (const b of buttons) { b.classList.remove('arm'); b.textContent = b.id === 'cv-board-reset2' ? 'Reset' : 'Reset leaderboard'; } note.textContent = ''; };
+    const reset = () => {
+        saveBoard([]);
+        disarm();
+        note.textContent = 'All scores cleared.';
+        if (!($('cv-board') as HTMLElement).hidden) showBoard();
+        setStatus('Leaderboard cleared — fresh session');
+    };
+    for (const b of buttons) b.addEventListener('click', () => {
+        if (b.classList.contains('arm')) { if (armTimer) clearTimeout(armTimer); reset(); return; }
+        disarm();
+        b.classList.add('arm');
+        b.textContent = 'Click again to confirm';
+        note.textContent = 'This clears every saved score.';
+        if (armTimer) clearTimeout(armTimer);
+        armTimer = setTimeout(disarm, 4000);
+    });
+}
+
 // ---------- Welcome screen (presentation pack) ----------
 // Mounted once in the game pane wrapper beside the canvas; shown once on
 // page entry. LET'S RUN delegates to the existing New Game flow (nickname →

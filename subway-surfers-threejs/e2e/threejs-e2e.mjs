@@ -978,6 +978,58 @@ if (catchOn) {
     await evalJs(`window.__cvtest.intro.hide(); 'ok'`);
 }
 
+// 15. Booth settings: camera section (device list, preset applies, exposure
+// lock reports support honestly) and the two-step leaderboard reset.
+{
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const cam = await evalJs(`
+    (async () => {
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        const T = window.__cvtest, out = {};
+        await T.camera.refresh();
+        const dev = document.getElementById('cv-cam-device');
+        out.devices = dev.options.length; out.currentSelected = dev.value === (T.camera.track()?.getSettings().deviceId || '');
+        out.infoText = document.getElementById('cv-cam-info').textContent;
+        const before = T.camera.track().getSettings();
+        await T.camera.applyPreset('640x360@30'); await sleep(300);
+        const after = T.camera.track().getSettings();
+        out.presetApplied = after.width === 640 && after.height === 360 && document.getElementById('cv-overlay').width === 640;
+        out.aspectKept = Math.abs(T.interpreter.opts.aspect - after.width / after.height) < 0.01;
+        await T.camera.applyPreset('1280x720@60'); await sleep(300);
+        out.restored = T.camera.track().getSettings().width === before.width;
+        const caps = T.camera.track().getCapabilities ? T.camera.track().getCapabilities() : {};
+        const canLock = Array.isArray(caps.exposureMode) && caps.exposureMode.includes('manual');
+        const lock = document.getElementById('cv-cam-lock');
+        out.lockHonest = canLock ? !lock.disabled : (lock.disabled && /not supported/.test(document.getElementById('cv-cam-info').textContent));
+        out.saved = localStorage.getItem('cv-cam-res') === '1280x720@60';
+        return JSON.stringify(out);
+    })()
+    `).then(JSON.parse);
+    check("camera settings: device list + live readout, preset applies and overlay follows", cam.devices >= 1 && cam.currentSelected && /fps/.test(cam.infoText) && cam.presetApplied && cam.aspectKept && cam.restored && cam.saved);
+    check("camera settings: exposure lock reports support honestly", cam.lockHonest);
+    const reset = await evalJs(`
+    (async () => {
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        const T = window.__cvtest, out = {};
+        T.board.save([{name: 'A', score: 500, coins: 1, at: 1}, {name: 'B', score: 200, coins: 0, at: 2}]);
+        const b = document.getElementById('cv-board-reset');
+        b.click(); await sleep(50);
+        out.armedNotCleared = b.classList.contains('arm') && T.board.load().length === 2;
+        b.click(); await sleep(50);
+        out.cleared = T.board.load().length === 0 && !b.classList.contains('arm') && /cleared/i.test(document.getElementById('cv-board-reset-note').textContent);
+        document.getElementById('cv-stop').click(); await sleep(100);
+        out.boardEmptyRow = /No runs yet/.test(document.getElementById('cv-board-list').textContent);
+        document.getElementById('cv-board-close').click();
+        // an un-confirmed arm expires
+        T.board.save([{name: 'C', score: 100, coins: 0, at: 3}]); b.click(); await sleep(4300);
+        out.armExpires = !b.classList.contains('arm') && T.board.load().length === 1;
+        T.board.save([]);
+        return JSON.stringify(out);
+    })()
+    `).then(JSON.parse);
+    check("booth: leaderboard reset needs a second click, clears all scores, arm expires", reset.armedNotCleared && reset.cleared && reset.boardEmptyRow && reset.armExpires);
+}
+
 const shot = await send("Page.captureScreenshot", { format: "png" });
 if (shot.result?.data && process.argv[3]) {
     const fs = await import("fs");
