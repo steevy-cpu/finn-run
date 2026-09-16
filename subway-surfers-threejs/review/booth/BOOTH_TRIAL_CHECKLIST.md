@@ -78,6 +78,18 @@ Calibration, tuning, control mode, nickname and leaderboard also persist per bro
 - [person] Leave the tab hidden for a minute mid-run and return: game resumes without a teleport, video (if it was playing) has been cancelled to results.
 - [person] Long session (20+ min) fps check.
 
+## Soak test (2026-09-15 night, `e2e/soak.mjs`, 100 booth cycles ≈ 24 min headless)
+Each cycle: New Game (nickname, Body Control; every 5th cycle Hand Control; every 7th a re-calibration) → run with injected steps/jumps/squats → game over by crash (catch video played to the end or skipped on alternate cycles) or by Stop (every 3rd) → results → restart. Snapshots after a forced GC:
+| after | heap MB | DOM nodes | listeners | geometries | textures | programs | pursuer groups | errors |
+|---|---|---|---|---|---|---|---|---|
+| start | 10.5 | 747 | 53 | 93 | 6 | 11 | 0 | 0 |
+| 10 cycles | 11.7 | 795 | 53 | 97 | 8 | 14 | 1 | 0 |
+| 50 cycles | 12.0 | 795 | 53 | 97 | 8 | 14 | 1 | 0 |
+| 100 cycles | 12.1 | 795 | 53 | 97 | 8 | 14 | 1 | 0 |
+Nothing accumulates: one settle after the first run (+48 nodes for the results/intro state, +4 geometries/+2 textures for Arturo and the video), then flat. Pose loop 21 fps / 9–15 ms throughout, one video element pair, leaderboard capped, 0 exceptions.
+Headless-only artefact: the virtual display drops to 30 Hz after the first video playback; a real Chrome window stays at 60 (verified headed). The stats chip now shows `game N fps` so this is visible on the day.
+Photos: every New Game saves one ~250 KB face JPEG to `photos/` (~25 MB for 100 runs) — fine for a 2-hour session; the folder was cleared of test snapshots.
+
 ## Automated results reused (this pass re-ran the suites after the camera-retry change)
 - e2e with the trial flags (`env=phase2&phase3=1&fx=1&finnPolish=original&ui=phase4&arturo=1&catchVideo=1`): **101/101**; with defaults (`env=legacy&phase3=0&ui=original&arturo=0&catchVideo=0`): **85/85**; 0 console errors.
 - Units: gestures 68/68, effects 6/6, polish 6/6.

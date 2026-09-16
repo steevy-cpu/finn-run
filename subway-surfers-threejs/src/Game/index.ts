@@ -81,9 +81,16 @@ export default class Game extends EventEmitter {
         this.resize();
         this.resource();
     }
+    // Render-loop rate for the panel readout (frames in the last second).
+    fps = 0;
+    private fpsFrames = 0;
+    private fpsAt = 0;
     update() {
         const delta = this.time.delta / 1000;
         stats?.update();
+        this.fpsFrames++;
+        const now = this.time.current;
+        if (now - this.fpsAt >= 1000) { this.fps = Math.round(this.fpsFrames * 1000 / (now - this.fpsAt)); this.fpsFrames = 0; this.fpsAt = now; }
         // VFX advance with the transforms about to be rendered (seconds).
         this.fx?.update(delta, this.camera.perspectiveCamera);
         this.renderer.update();

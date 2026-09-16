@@ -14,7 +14,8 @@ const MIME = {
     '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript',
     '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm',
     '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon', '.svg': 'image/svg+xml',
-    '.glb': 'model/gltf-binary', '.mp3': 'audio/mpeg', '.task': 'application/octet-stream',
+    '.glb': 'model/gltf-binary', '.mp3': 'audio/mpeg', '.mp4': 'video/mp4', '.jpeg': 'image/jpeg',
+    '.task': 'application/octet-stream', '.webmanifest': 'application/manifest+json',
 };
 
 fs.mkdirSync(PHOTOS, {recursive: true});

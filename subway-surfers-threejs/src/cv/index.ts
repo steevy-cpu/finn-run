@@ -814,7 +814,7 @@ const engine = new PoseEngine({
         if (landmarksAt - lastStatsAt > 500) {
             lastStatsAt = landmarksAt;
             $('cv-stats').textContent =
-                `pose ${engine.fps} fps · ${Math.round(engine.inferMs)} ms`
+                `pose ${engine.fps} fps · ${Math.round(engine.inferMs)} ms · game ${game.fps} fps`
                 + (engine.track?.locked ? ' · locked on player' : ' · searching')
                 + (mode === 'hands' ? ' · hands mode' : '')
                 + (LOW_POWER ? ' · low-power' : '');
