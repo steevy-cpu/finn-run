@@ -1028,6 +1028,14 @@ if (catchOn) {
     })()
     `).then(JSON.parse);
     check("booth: leaderboard reset needs a second click, clears all scores, arm expires", reset.armedNotCleared && reset.cleared && reset.boardEmptyRow && reset.armExpires);
+    const top3 = await evalJs(`JSON.stringify((() => { const T = window.__cvtest, el = document.getElementById('cv-top3'), list = document.getElementById('cv-top3-list');
+        const r = el.getBoundingClientRect(); const pane = document.querySelector('.experience').getBoundingClientRect();
+        T.board.save([{name: 'Zed', score: 900, coins: 2, at: 1}, {name: 'Amy', score: 700, coins: 1, at: 2}, {name: 'Bo', score: 100, coins: 0, at: 3}, {name: 'Cy', score: 50, coins: 0, at: 4}]);
+        const rows = [...list.querySelectorAll('li')].map(li => li.textContent.replace(/\s+/g, ' ').trim());
+        T.board.save([]);
+        const empty = /No runs yet/.test(list.textContent);
+        return {topLeft: r.left < 40 && r.top < 40 && r.right < pane.right, visible: getComputedStyle(el).visibility === 'visible', rows, empty}; })())`).then(JSON.parse);
+    check("top 3 widget: top-left of the game pane, three rows in order, live with the board", top3.topLeft && top3.visible && top3.rows.length === 3 && /Zed.*900/.test(top3.rows[0]) && /Amy.*700/.test(top3.rows[1]) && /Bo.*100/.test(top3.rows[2]) && top3.empty);
 }
 
 const shot = await send("Page.captureScreenshot", { format: "png" });

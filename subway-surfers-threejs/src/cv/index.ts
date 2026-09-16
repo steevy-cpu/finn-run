@@ -119,6 +119,24 @@ style.textContent = `
     background: #2a2f36; padding: 12px 14px; font-size: 18px; line-height: 1;
 }
 #cv-cam-retry[hidden] { display: none; }
+/* Always-visible Top 3 in the game pane's top-left corner. */
+#cv-top3 {
+    position: fixed; left: 14px; top: 14px; z-index: 1000; pointer-events: none;
+    min-width: 168px; padding: 8px 12px 9px; border-radius: 12px;
+    background: rgba(17, 20, 24, 0.82); color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.35);
+    font-family: system-ui, -apple-system, sans-serif;
+}
+#cv-top3 .t3-title { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: #9aa0a6; margin-bottom: 4px; }
+#cv-top3 ol { list-style: none; margin: 0; padding: 0; }
+#cv-top3 li { display: flex; align-items: baseline; gap: 8px; font-size: 14px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+#cv-top3 li .m { width: 18px; text-align: center; }
+#cv-top3 li .n { flex: 1; font-weight: 700; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#cv-top3 li .s { font-weight: 600; }
+#cv-top3 li.empty { color: #9aa0a6; font-size: 12.5px; }
+html[data-intro="on"] #cv-top3 { visibility: hidden; }
+html[data-ui="phase4"] #cv-top3 { background: rgba(7, 21, 33, .86); border: 1px solid #304a59; border-radius: 14px; }
+html[data-ui="phase4"] #cv-top3 .t3-title { color: #b2c4ce; font-weight: 800; letter-spacing: .14em; font-size: 10.5px; }
+html[data-ui="phase4"] #cv-top3 li .s { color: #ffd45a; }
 #cv-tuning select { flex: 1; min-width: 0; font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid #3a3f47; background: #1b1f25; color: #e8eaed; }
 .cv-note { display: block; font-size: 12px; color: #9aa0a6; margin-top: 4px; line-height: 1.35; }
 .cv-btn-small { padding: 8px 14px; font-size: 14px; margin-top: 4px; }
@@ -268,6 +286,7 @@ gameOverlays.innerHTML = `
             </div>
         </div>
     </div>
+    <div id="cv-top3" aria-live="polite" aria-label="Top 3 players"><div class="t3-title">Top 3</div><ol id="cv-top3-list"></ol></div>
     <div id="cv-catch" aria-hidden="true">
         <video id="cv-catch-video" muted playsinline preload="none" aria-label="Arturo catches Finn"></video>
         <button id="cv-catch-skip" type="button">Skip ▸</button>
@@ -390,6 +409,17 @@ function loadBoard(): Entry[] {
 }
 function saveBoard(entries: Entry[]) {
     try { localStorage.setItem(BOARD_KEY, JSON.stringify(entries)); } catch {}
+    renderTop3();
+}
+// Corner widget: the same Top 3 the results card shows, always on screen.
+function renderTop3() {
+    const list = document.getElementById('cv-top3-list');
+    if (!list) return;
+    const top = loadBoard().slice(0, 3);
+    const medals = ['🥇', '🥈', '🥉'];
+    list.innerHTML = top.length
+        ? top.map((e, i) => `<li><span class="m">${medals[i]}</span><span class="n">${escapeHtml(e.name)}</span><span class="s">${e.score.toLocaleString()}</span></li>`).join('')
+        : '<li class="empty">No runs yet</li>';
 }
 // Records a finished run. One entry per player (best score wins), so two
 // people playing many rounds still show as two rows. Returns the player's
@@ -644,6 +674,7 @@ game.on('gameStatus', (status: string) => {
 });
 game.on('gameData', (d: any) => { lastData = {score: d.score, coin: d.coin}; });
 
+renderTop3();
 $('cv-newgame').addEventListener('click', openNamePrompt);
 $('cv-board-newgame').addEventListener('click', openNamePrompt);
 $('cv-board-close').addEventListener('click', hideBoard);
