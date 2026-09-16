@@ -10,12 +10,23 @@ html[data-intro="on"] .score_container { visibility: hidden; }
 .experience .frp-intro { z-index: 5; }
 
 /* Booth size: the title and LET'S RUN must be visible without scrolling at
-   a 720×900 pane (1440×900) and at 640×720 — tighten the art headroom. */
-.experience .frp-content { padding-top: min(24cqw, 176px); }
+   a 720×900 pane (1440×900) and at 640×720 — tighten the art headroom, and
+   centre the text column vertically in the space under the art (stacked
+   layout) or beside it (wide layout). 'safe center' keeps the top reachable
+   by scrolling when the column is taller than the pane. */
+.experience .frp-content {
+    display: flex; flex-direction: column; justify-content: safe center; align-items: flex-start;
+    min-height: 100%; box-sizing: border-box;
+    padding-top: min(24cqw, 176px); padding-bottom: clamp(18px, 3cqw, 32px);
+}
 .experience .frp-how { margin-top: 14px; }
+@container (min-width: 900px) {
+    .experience .frp-content { padding-top: clamp(40px, 5cqw, 90px); }
+}
 
 /* Phase 4 identity when that UI is on: same display face and tokens. */
 html[data-ui="phase4"] .frp-intro { font-family: var(--p4-body); background: var(--p4-bg); }
+.experience .frp-start { width: min(100%, 340px); align-self: stretch; max-width: 340px; }
 html[data-ui="phase4"] .frp-title { font-family: var(--p4-display); letter-spacing: .02em; font-weight: 800; }
 html[data-ui="phase4"] .frp-title span,
 html[data-ui="phase4"] .frp-tagline,
